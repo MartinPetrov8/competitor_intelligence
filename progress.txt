@@ -208,3 +208,12 @@ The developer must ensure:
 - **Learnings:** Using `BeautifulSoup(...).stripped_strings` as the diff normalization basis provides stable textual diffs while filtering markup-format noise.
 - **SKILLS_APPLIED:** web-scraping (requests, BeautifulSoup, difflib for HTML snapshot capture and normalized diff generation)
 ---
+
+## 2026-02-22 23:57 UTC - S-5: Trustpilot review scraper
+- Implemented `scrapers/reviews_trustpilot.py` with competitor iteration against Trustpilot review pages, JSON-LD parsing for aggregate rating/review count, and star-distribution extraction from embedded data/fallback page text.
+- Added schema-safe migrations in scraper for `review_count` and `stars_5` through `stars_1` columns while maintaining compatibility with existing `total_reviews`/`rating_*` columns.
+- Added graceful handling for missing/blocked pages (timeouts and HTTP errors logged, scraper continues without crashing).
+- Added tests in `tests/test_reviews_trustpilot.py` covering parser extraction and end-to-end persistence behavior with partial failures.
+- **Learnings:** Trustpilot metric fields are most reliably exposed through `application/ld+json` aggregate data; star breakdown often appears in non-JSON script blobs requiring regex extraction.
+- **SKILLS_APPLIED:** web-scraping (Trustpilot extraction via JSON-LD + fallback script/text parsing)
+---
