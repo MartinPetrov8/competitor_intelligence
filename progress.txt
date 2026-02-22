@@ -179,3 +179,12 @@ The developer must ensure:
 - Added tests in `tests/test_init_db.py` to validate table creation, competitor seeding, and date+competitor indexes.
 - **Learnings:** For this environment, standard-library `unittest` and `compileall` are reliable validation fallbacks when third-party tooling is not preinstalled.
 ---
+
+## 2026-02-22 23:21 UTC - S-2: Pricing scraper module
+- Implemented `scrapers/pricing.py` with competitor iteration, multi-path pricing page fetches, robust timeout/HTTP error handling, and SQLite inserts into `prices`.
+- Added parser logic to extract product names, currency, price amount, and bundle text from HTML using BeautifulSoup.
+- Added schema-safe write behavior to ensure `price_usd` column exists and is populated alongside `price_amount`.
+- Added tests in `tests/test_pricing_scraper.py` covering HTML extraction, timeout handling, HTTP error handling, and DB persistence requirements.
+- Updated mypy config for `requests` third-party typing availability in this environment.
+- **Learnings:** Competitor pages commonly expose price info on the homepage when dedicated `/pricing` routes return 404, so scraper checks both base URL and likely pricing paths.
+---
