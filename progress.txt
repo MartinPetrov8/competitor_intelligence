@@ -206,4 +206,5 @@ The developer must ensure:
 - Added resilience patterns consistent with prior scrapers (timeouts/HTTP errors logged per-competitor; scraper continues and returns successfully when partial data is available).
 - Added tests in `tests/test_snapshots_scraper.py` for normalization behavior and end-to-end snapshot/diff persistence across consecutive runs.
 - **Learnings:** Using `BeautifulSoup(...).stripped_strings` as the diff normalization basis provides stable textual diffs while filtering markup-format noise.
+- **SKILLS_APPLIED:** web-scraping (requests, BeautifulSoup, difflib for HTML snapshot capture and normalized diff generation)
 ---
