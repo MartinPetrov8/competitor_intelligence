@@ -160,6 +160,7 @@ def test_pricing_scraper(test_db):
 - **Timestamps:** Store as ISO 8601 strings or Unix timestamps
 - **Competitor list:** Hardcoded in scrapers or config file
 - **Scrape deduplication:** When scraping multiple paths for one competitor, deduplicate by stable semantic keys before DB insert.
+- **Snapshot diffs:** Normalize HTML with stripped text nodes and timestamp tokenization before `difflib.unified_diff` to reduce noisy whitespace/timestamp-only diffs.
 
 ### Definition of Done Checklist
 The developer must ensure:
@@ -197,4 +198,12 @@ The developer must ensure:
 - Added per-competitor deduplication across multiple scraped pages to avoid duplicate product inserts.
 - Added tests in `tests/test_products_scraper.py` for parser correctness, persistence field coverage, timeout/error continuation behavior, and historical new-product detection workflow.
 - **Learnings:** Matching domain substrings in scraper tests can cause false positives (`onwardticket.com` vs `bestonwardticket.com`), so tests should use ordered/specific host checks.
+---
+
+## 2026-02-22 23:46 UTC - S-4: Website snapshot and diff module
+- Implemented `scrapers/snapshots.py` to capture homepage + pricing-page HTML per competitor, persist raw snapshots, and generate/store unified diffs against prior snapshots.
+- Added diff normalization logic to ignore pure whitespace changes and dynamic timestamp strings before comparison.
+- Added resilience patterns consistent with prior scrapers (timeouts/HTTP errors logged per-competitor; scraper continues and returns successfully when partial data is available).
+- Added tests in `tests/test_snapshots_scraper.py` for normalization behavior and end-to-end snapshot/diff persistence across consecutive runs.
+- **Learnings:** Using `BeautifulSoup(...).stripped_strings` as the diff normalization basis provides stable textual diffs while filtering markup-format noise.
 ---
