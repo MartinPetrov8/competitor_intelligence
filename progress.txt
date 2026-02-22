@@ -159,6 +159,7 @@ def test_pricing_scraper(test_db):
 - **Database:** Single SQLite file (competitor_data.db)
 - **Timestamps:** Store as ISO 8601 strings or Unix timestamps
 - **Competitor list:** Hardcoded in scrapers or config file
+- **Scrape deduplication:** When scraping multiple paths for one competitor, deduplicate by stable semantic keys before DB insert.
 
 ### Definition of Done Checklist
 The developer must ensure:
@@ -187,4 +188,13 @@ The developer must ensure:
 - Added tests in `tests/test_pricing_scraper.py` covering HTML extraction, timeout handling, HTTP error handling, and DB persistence requirements.
 - Updated mypy config for `requests` third-party typing availability in this environment.
 - **Learnings:** Competitor pages commonly expose price info on the homepage when dedicated `/pricing` routes return 404, so scraper checks both base URL and likely pricing paths.
+---
+
+## 2026-02-22 23:40 UTC - S-3: Product catalog scraper module
+- Implemented `scrapers/products.py` with resilient multi-path product scraping across all competitors and graceful timeout/HTTP error handling.
+- Added HTML parsing to extract `product_name`, `description`, `price_range`, `url`, and timestamps; writes to `products` table with schema-safe migrations for `price_range` and `url` columns.
+- Added historical new-product detection by comparing current scrape against prior-day product names per competitor.
+- Added per-competitor deduplication across multiple scraped pages to avoid duplicate product inserts.
+- Added tests in `tests/test_products_scraper.py` for parser correctness, persistence field coverage, timeout/error continuation behavior, and historical new-product detection workflow.
+- **Learnings:** Matching domain substrings in scraper tests can cause false positives (`onwardticket.com` vs `bestonwardticket.com`), so tests should use ordered/specific host checks.
 ---
