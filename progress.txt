@@ -1,0 +1,171 @@
+# Competitor Tracker Setup — Progress
+
+## Branch Status
+- Branch: feature/competitor-tracker-mvp
+- Base: main (initial commit)
+- Status: Ready for development
+
+## Build & Test Configuration
+**Status:** Not yet configured (fresh repository)
+
+**Recommended Setup:**
+- Create requirements.txt with: requests, beautifulsoup4, flask (for dashboard), pytest (for tests)
+- Create Makefile or scripts for common tasks
+- Add pytest.ini for test configuration
+
+## Project Hygiene
+✅ .gitignore created (Python + SQLite + environment files)
+✅ .env.example created (dashboard, database, scraper config placeholders)
+
+## Baseline Status
+- No existing code to build or test
+- Clean slate — no pre-existing failures
+- Git repository initialized with main branch
+
+## Codebase Patterns
+
+Since this is a fresh repository, here are the **recommended patterns** the developer should follow based on the project requirements:
+
+### Project Structure
+```
+/scrapers/           # Individual scraper modules
+  pricing.py         # Pricing scraper
+  products.py        # Product catalog scraper
+  snapshots.py       # Website snapshot scraper
+  reviews.py         # Review monitoring (Trustpilot + Google)
+/database/           # Database schema and utilities
+  schema.py          # Table definitions
+  db_utils.py        # DB connection and common queries
+/dashboard/          # HTML dashboard
+  app.py             # Flask server (port 3001)
+  static/            # CSS, JS, Chart.js
+  templates/         # HTML templates
+run_daily.py         # Main runner script
+requirements.txt     # Python dependencies
+README.md            # Setup and cron instructions
+.env                 # Local config (gitignored)
+.env.example         # Template for environment variables
+```
+
+### Error Handling Pattern
+**CRITICAL:** Each scraper must handle errors gracefully without crashing the entire run.
+
+```python
+# Pattern: try/except with logging, continue on failure
+import logging
+
+def scrape_competitor(competitor_url):
+    try:
+        # scraping logic
+        response = requests.get(competitor_url, timeout=30)
+        response.raise_for_status()
+        # parse and store
+        return True
+    except requests.Timeout:
+        logging.error(f"Timeout scraping {competitor_url}")
+        return False
+    except requests.RequestException as e:
+        logging.error(f"Error scraping {competitor_url}: {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error scraping {competitor_url}: {e}")
+        return False
+```
+
+### Database Pattern
+**Use context managers for SQLite connections:**
+
+```python
+import sqlite3
+from contextlib import contextmanager
+
+@contextmanager
+def get_db_connection(db_path):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row  # Access columns by name
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+```
+
+### Daily Runner Pattern (run_daily.py)
+**Sequential execution with failure isolation:**
+
+```python
+# Each scraper runs independently
+# One failure doesn't stop the others
+# Log all results
+
+scrapers = [
+    ("Pricing", scrape_pricing),
+    ("Products", scrape_products),
+    ("Snapshots", scrape_snapshots),
+    ("Reviews", scrape_reviews),
+]
+
+results = {}
+for name, scraper_func in scrapers:
+    try:
+        logging.info(f"Running {name} scraper...")
+        success = scraper_func()
+        results[name] = "SUCCESS" if success else "FAILED"
+    except Exception as e:
+        logging.error(f"{name} scraper crashed: {e}")
+        results[name] = "CRASHED"
+
+# Exit 0 even if some scrapers failed (graceful degradation)
+sys.exit(0)
+```
+
+### Testing Pattern
+**File naming:** `test_<module>.py` in same directory or `/tests` directory
+**Use pytest fixtures for database setup:**
+
+```python
+import pytest
+import sqlite3
+
+@pytest.fixture
+def test_db():
+    conn = sqlite3.connect(":memory:")
+    # Create schema
+    # ...
+    yield conn
+    conn.close()
+
+def test_pricing_scraper(test_db):
+    # Test with mock data
+    assert scraper_function() is not None
+```
+
+### Dashboard Requirements
+- **Port:** 3001 (configurable via .env)
+- **Auth:** Basic password protection (shared credential)
+- **Response format:** HTML with embedded Chart.js
+- **Date picker:** Allow viewing historical data
+- **Charts:** Line charts for trends (pricing, review counts)
+- **Diff viewer:** Side-by-side or inline diff with highlighting
+
+### Key Conventions
+- **Naming:** snake_case for Python files and functions
+- **Logging:** Use Python's logging module (not print statements)
+- **Config:** Load from .env using python-dotenv or os.environ
+- **Database:** Single SQLite file (competitor_data.db)
+- **Timestamps:** Store as ISO 8601 strings or Unix timestamps
+- **Competitor list:** Hardcoded in scrapers or config file
+
+### Definition of Done Checklist
+The developer must ensure:
+- [ ] `python run_daily.py` exits 0 and populates all DB tables
+- [ ] Dashboard loads at localhost:3001 with data for all 5 competitors
+- [ ] Price data matches manual spot-check for at least 3 competitors
+- [ ] Review counts match Trustpilot/Google within ±2
+- [ ] Website diff correctly highlights changes between snapshots
+- [ ] Scraper handles timeouts/blocks without crashing (logs error, continues)
+- [ ] Dashboard viewable by anyone with the URL (no local setup needed)
+- [ ] README with setup and cron instructions
