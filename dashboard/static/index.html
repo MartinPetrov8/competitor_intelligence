@@ -119,7 +119,7 @@
     }
     .card-body { padding: 1.25rem; }
 
-    /* ── Pricing table ── */
+    /* ── Tables ── */
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: .875rem; }
     thead th {
@@ -213,6 +213,141 @@
     .badge-green { background: #dcfce7; color: #15803d; }
     .badge-gray { background: #f1f5f9; color: #475569; }
 
+    /* ── Rating star ── */
+    .rating-stars {
+      color: #f59e0b;
+      font-weight: 700;
+      letter-spacing: .05em;
+    }
+    .rating-num {
+      display: inline-block;
+      font-weight: 800;
+      color: #1e293b;
+    }
+    .rating-source {
+      font-size: .75rem;
+      color: #64748b;
+      margin-left: .25rem;
+    }
+
+    /* ── Review source tabs ── */
+    .source-tabs {
+      display: flex;
+      gap: .5rem;
+      margin-bottom: 1rem;
+    }
+    .source-tab-btn {
+      padding: .35rem .85rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 999px;
+      background: #fff;
+      cursor: pointer;
+      font-size: .825rem;
+      font-weight: 600;
+      color: #64748b;
+      transition: all .15s;
+    }
+    .source-tab-btn.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+
+    /* ── Diff viewer ── */
+    .diff-item {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .diff-item-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: .65rem 1rem;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+    .diff-item-header .competitor-name {
+      font-weight: 700;
+      font-size: .875rem;
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+    }
+    .diff-meta {
+      font-size: .78rem;
+      color: #64748b;
+    }
+    .diff-counts {
+      margin-left: auto;
+      display: flex;
+      gap: .4rem;
+    }
+    .diff-add-count { color: #15803d; font-weight: 700; font-size: .78rem; }
+    .diff-rem-count { color: #dc2626; font-weight: 700; font-size: .78rem; }
+    .diff-body {
+      display: none;
+      padding: .75rem;
+      background: #0f172a;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .diff-body.expanded { display: block; }
+    .diff-pre {
+      font-family: "SFMono-Regular", "Fira Code", "Consolas", monospace;
+      font-size: .78rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .diff-line { display: block; padding: 0 .25rem; border-radius: 2px; }
+    .diff-line-add { background: rgba(21,128,61,.25); color: #86efac; }
+    .diff-line-rem { background: rgba(220,38,38,.2); color: #fca5a5; }
+    .diff-line-hdr { color: #93c5fd; font-weight: 700; }
+    .diff-line-ctx { color: #94a3b8; }
+    .diff-toggle-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: .8rem;
+      color: #2563eb;
+      font-weight: 600;
+      padding: 0;
+    }
+    .diff-no-changes {
+      padding: .5rem 1rem;
+      font-size: .82rem;
+      color: #94a3b8;
+      font-style: italic;
+    }
+
+    /* ── Products matrix ── */
+    .matrix-check { color: #15803d; font-size: 1.1rem; font-weight: 700; }
+    .matrix-cross { color: #cbd5e1; font-size: 1rem; }
+    .product-type-badge {
+      display: inline-block;
+      padding: .1rem .45rem;
+      border-radius: 5px;
+      font-size: .72rem;
+      font-weight: 600;
+      background: #eff6ff;
+      color: #2563eb;
+      margin-left: .3rem;
+    }
+
+    /* ── Review trend layout ── */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 900px) {
+      .charts-row { grid-template-columns: 1fr; }
+    }
+
     /* ── Responsive ── */
     @media (max-width: 640px) {
       .content { padding: 1rem; }
@@ -237,10 +372,10 @@
 <!-- ─────────── Tab bar ─────────── -->
 <nav class="tab-bar" role="tablist">
   <button class="tab-btn active" data-tab="pricing" role="tab" aria-selected="true">💰 Pricing</button>
-  <button class="tab-btn" data-tab="products" role="tab">📦 Products</button>
-  <button class="tab-btn" data-tab="reviews" role="tab">⭐ Reviews</button>
-  <button class="tab-btn" data-tab="diffs" role="tab">🔄 Site Diffs</button>
-  <button class="tab-btn" data-tab="abtests" role="tab">🧪 A/B Tests</button>
+  <button class="tab-btn" data-tab="products" role="tab" aria-selected="false">📦 Products</button>
+  <button class="tab-btn" data-tab="reviews" role="tab" aria-selected="false">⭐ Reviews</button>
+  <button class="tab-btn" data-tab="diffs" role="tab" aria-selected="false">🔄 Site Diffs</button>
+  <button class="tab-btn" data-tab="abtests" role="tab" aria-selected="false">🧪 A/B Tests</button>
 </nav>
 
 <!-- ─────────── Main content ─────────── -->
@@ -342,14 +477,52 @@
 
   <!-- ════ PRODUCTS TAB ════ -->
   <section class="tab-panel" id="tab-products">
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label for="productsFilterCompetitor">Competitor</label>
+        <select id="productsFilterCompetitor">
+          <option value="">All competitors</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="productsFilterDate">Date</label>
+        <input type="date" id="productsFilterDate" />
+      </div>
+      <button class="btn btn-primary" id="productsApplyFilters">Apply</button>
+      <button class="btn btn-secondary" id="productsResetFilters">Reset</button>
+    </div>
+
+    <!-- Product comparison matrix -->
     <div class="card">
-      <div class="card-header">📦 Product Catalog</div>
+      <div class="card-header">
+        📦 Product Comparison Matrix
+        <span class="badge badge-gray" id="productsRowCount" style="margin-left:auto;">—</span>
+      </div>
       <div class="card-body">
-        <div class="state-box" id="productsPlaceholder">
-          <div class="icon">🚧</div>
-          <div class="label">Products view — coming in next release</div>
+        <div id="productsMatrixState" class="state-box">
+          <div class="spinner"></div>
+          <div class="label">Loading products…</div>
         </div>
-        <div class="table-wrap" id="productsTableWrap" style="display:none;">
+        <div class="table-wrap" id="productsMatrixWrap" style="display:none;">
+          <table id="productsMatrixTable" aria-label="Products comparison matrix">
+            <thead id="productsMatrixHead"></thead>
+            <tbody id="productsMatrixBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full product catalog table -->
+    <div class="card">
+      <div class="card-header">📋 Full Product Catalog</div>
+      <div class="card-body">
+        <div id="productsCatalogState" class="state-box" style="display:none;">
+          <div class="icon">🔍</div>
+          <div class="label">No product data found.</div>
+        </div>
+        <div class="table-wrap" id="productsCatalogWrap" style="display:none;">
           <table id="productsTable" aria-label="Products catalog table">
             <thead>
               <tr>
@@ -366,32 +539,135 @@
         </div>
       </div>
     </div>
+
   </section>
 
   <!-- ════ REVIEWS TAB ════ -->
   <section class="tab-panel" id="tab-reviews">
-    <div class="card">
-      <div class="card-header">⭐ Review Metrics</div>
-      <div class="card-body">
-        <div class="state-box" id="reviewsPlaceholder">
-          <div class="icon">🚧</div>
-          <div class="label">Reviews view — coming in next release</div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label for="reviewsFilterCompetitor">Competitor</label>
+        <select id="reviewsFilterCompetitor">
+          <option value="">All competitors</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="reviewsFilterFrom">From</label>
+        <input type="date" id="reviewsFilterFrom" />
+      </div>
+      <div class="filter-group">
+        <label for="reviewsFilterTo">To</label>
+        <input type="date" id="reviewsFilterTo" />
+      </div>
+      <button class="btn btn-primary" id="reviewsApplyFilters">Apply</button>
+      <button class="btn btn-secondary" id="reviewsResetFilters">Reset</button>
+    </div>
+
+    <!-- Source selector -->
+    <div class="source-tabs" id="reviewsSourceTabs" role="tablist" aria-label="Review source">
+      <button class="source-tab-btn active" data-source="trustpilot" role="tab" aria-selected="true">Trustpilot</button>
+      <button class="source-tab-btn" data-source="google" role="tab" aria-selected="false">Google</button>
+    </div>
+
+    <!-- Trend charts -->
+    <div class="charts-row">
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">⭐ Rating Trend</div>
+        <div class="card-body">
+          <div id="reviewsRatingChartState" class="state-box" style="display:none;">
+            <div class="icon">📉</div>
+            <div class="label">No rating data available.</div>
+          </div>
+          <div class="chart-container" id="reviewsRatingChartWrap">
+            <canvas id="reviewsRatingChart" aria-label="Review rating trend chart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <div class="card-header">💬 Review Count Trend</div>
+        <div class="card-body">
+          <div id="reviewsCountChartState" class="state-box" style="display:none;">
+            <div class="icon">📉</div>
+            <div class="label">No review count data available.</div>
+          </div>
+          <div class="chart-container" id="reviewsCountChartWrap">
+            <canvas id="reviewsCountChart" aria-label="Review count trend chart"></canvas>
+          </div>
         </div>
       </div>
     </div>
+    <div style="margin-bottom:1.25rem;"></div>
+
+    <!-- Ratings table -->
+    <div class="card">
+      <div class="card-header">
+        📋 Latest Ratings
+        <span class="badge badge-gray" id="reviewsRowCount" style="margin-left:auto;">—</span>
+      </div>
+      <div class="card-body">
+        <div id="reviewsTableState" class="state-box">
+          <div class="spinner"></div>
+          <div class="label">Loading reviews…</div>
+        </div>
+        <div class="table-wrap" id="reviewsTableWrap" style="display:none;">
+          <table id="reviewsTable" aria-label="Review metrics table">
+            <thead>
+              <tr>
+                <th>Competitor</th>
+                <th>Date</th>
+                <th>Rating</th>
+                <th>Reviews</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="reviewsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </section>
 
   <!-- ════ DIFFS TAB ════ -->
   <section class="tab-panel" id="tab-diffs">
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label for="diffsFilterCompetitor">Competitor</label>
+        <select id="diffsFilterCompetitor">
+          <option value="">All competitors</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="diffsFilterFrom">From</label>
+        <input type="date" id="diffsFilterFrom" />
+      </div>
+      <div class="filter-group">
+        <label for="diffsFilterTo">To</label>
+        <input type="date" id="diffsFilterTo" />
+      </div>
+      <button class="btn btn-primary" id="diffsApplyFilters">Apply</button>
+      <button class="btn btn-secondary" id="diffsResetFilters">Reset</button>
+    </div>
+
+    <!-- Diffs list -->
     <div class="card">
-      <div class="card-header">🔄 Website Changes</div>
-      <div class="card-body">
-        <div class="state-box" id="diffsPlaceholder">
-          <div class="icon">🚧</div>
-          <div class="label">Site diffs view — coming in next release</div>
+      <div class="card-header">
+        🔄 Website Changes
+        <span class="badge badge-gray" id="diffsCount" style="margin-left:auto;">—</span>
+      </div>
+      <div class="card-body" id="diffsCardBody">
+        <div id="diffsState" class="state-box">
+          <div class="spinner"></div>
+          <div class="label">Loading diffs…</div>
         </div>
+        <div id="diffsList"></div>
       </div>
     </div>
+
   </section>
 
   <!-- ════ A/B TESTS TAB ════ -->
@@ -411,8 +687,9 @@
 
 <script>
 /* ══════════════════════════════════════════════
-   Competitor Intelligence Dashboard — Pricing
+   Competitor Intelligence Dashboard
    Vanilla JS, Chart.js 4
+   Tabs: Pricing | Products | Reviews | Diffs | A/B Tests
 ══════════════════════════════════════════════ */
 
 // ── Competitor colour palette ──────────────────
@@ -447,26 +724,84 @@ async function fetchJSON(url) {
   return res.json();
 }
 
-function buildPriceURL(params) {
+function buildURL(base, params) {
   const qs = new URLSearchParams();
   if (params.competitor) qs.set('competitor', params.competitor);
+  if (params.date)       qs.set('date', params.date);
   if (params.startDate)  qs.set('start_date', params.startDate);
   if (params.endDate)    qs.set('end_date', params.endDate);
   const q = qs.toString();
-  return '/api/prices' + (q ? '?' + q : '');
+  return base + (q ? '?' + q : '');
 }
 
-// ── Chart singleton ────────────────────────────
-let trendChart = null;
+// ── Chart registry ─────────────────────────────
+const charts = {};
 
-function destroyChart() {
-  if (trendChart) {
-    trendChart.destroy();
-    trendChart = null;
+function destroyChart(id) {
+  if (charts[id]) {
+    charts[id].destroy();
+    delete charts[id];
   }
 }
 
-// ── Render helpers ─────────────────────────────
+function createLineChart(canvasId, labels, datasets, yTickCb) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10 } },
+      },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, maxRotation: 45 },
+        },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, callback: yTickCb },
+          beginAtZero: false,
+        }
+      }
+    }
+  });
+}
+
+// ── Escape helpers ─────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function escAttr(str) {
+  return String(str).replace(/"/g, '&quot;');
+}
+
+// ── Competitor filter population ───────────────
+function populateCompetitorFilter(selectId, competitors) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All competitors</option>' +
+    competitors.map(c => `<option value="${escAttr(c.domain)}"${c.domain === current ? ' selected' : ''}>${escHtml(c.domain)}</option>`).join('');
+}
+
+let allCompetitors = [];
+
+// ══════════════════════════════════════════════
+// PRICING TAB
+// ══════════════════════════════════════════════
+
+function buildPriceURL(params) {
+  return buildURL('/api/prices', params);
+}
 
 function renderSummary(rows) {
   const el = document.getElementById('pricingSummary');
@@ -549,9 +884,8 @@ function renderPriceTable(rows) {
 function renderTrendChart(rows) {
   const chartWrap  = document.getElementById('chartWrap');
   const chartState = document.getElementById('chartState');
-  destroyChart();
+  destroyChart('priceTrendChart');
 
-  // Group by competitor → { date → [prices] }
   const byCompetitor = {};
   for (const r of rows) {
     if (r.price_amount == null) continue;
@@ -571,7 +905,6 @@ function renderTrendChart(rows) {
   chartState.style.display = 'none';
   chartWrap.style.display  = 'block';
 
-  // Collect all dates
   const allDates = [...new Set(rows.map(r => r.scrape_date).filter(Boolean))].sort();
 
   const datasets = competitors.map(comp => {
@@ -594,41 +927,7 @@ function renderTrendChart(rows) {
     };
   });
 
-  const ctx = document.getElementById('priceTrendChart').getContext('2d');
-  trendChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels: allDates, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10 } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const v = ctx.parsed.y;
-              return ` ${ctx.dataset.label}: $${v != null ? v.toFixed(2) : '—'}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: '#f1f5f9' },
-          ticks: { font: { size: 11 }, maxRotation: 45 },
-        },
-        y: {
-          grid: { color: '#f1f5f9' },
-          ticks: {
-            font: { size: 11 },
-            callback: v => '$' + v.toFixed(2),
-          },
-          beginAtZero: false,
-        }
-      }
-    }
-  });
+  createLineChart('priceTrendChart', allDates, datasets, v => '$' + v.toFixed(2));
 }
 
 function renderComparisonMatrix(rows) {
@@ -643,21 +942,10 @@ function renderComparisonMatrix(rows) {
     return;
   }
 
-  // Latest rows per competitor (latest scrape_date)
-  const latestByComp = {};
-  for (const r of rows) {
-    const prev = latestByComp[r.competitor];
-    if (!prev || r.scrape_date > prev.scrape_date) {
-      latestByComp[r.competitor] = r;
-    }
-  }
-
-  // Build matrix: product_name → competitor → min price
   const products = [...new Set(rows.map(r => r.product_name).filter(Boolean))].sort();
-  const competitors = Object.keys(latestByComp).sort();
+  const competitors = [...new Set(rows.map(r => r.competitor))].sort();
 
-  // For matrix: look at most recent scrape per competitor per product
-  const cell = {}; // cell[product][competitor] = price_amount
+  const cell = {};
   for (const r of rows) {
     if (!r.product_name) continue;
     if (!cell[r.product_name]) cell[r.product_name] = {};
@@ -693,26 +981,15 @@ function renderComparisonMatrix(rows) {
   }).join('');
 }
 
-// ── Product filter population ──────────────────
 function populateProductFilter(rows) {
   const sel = document.getElementById('filterProduct');
   const current = sel.value;
   const products = [...new Set(rows.map(r => r.product_name).filter(Boolean))].sort();
-  // Keep "All" option then add products
   sel.innerHTML = '<option value="">All products</option>' +
     products.map(p => `<option value="${escAttr(p)}"${p === current ? ' selected' : ''}>${escHtml(p)}</option>`).join('');
 }
 
-function populateCompetitorFilter(competitors) {
-  const sel = document.getElementById('filterCompetitor');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">All competitors</option>' +
-    competitors.map(c => `<option value="${escAttr(c.domain)}"${c.domain === current ? ' selected' : ''}>${escHtml(c.domain)}</option>`).join('');
-}
-
-// ── Load & render pipeline ─────────────────────
 async function loadAndRender() {
-  // Show loading state
   document.getElementById('priceTableState').style.display = 'flex';
   document.getElementById('priceTableState').innerHTML = `<div class="spinner"></div><div class="label">Loading…</div>`;
   document.getElementById('priceTableWrap').style.display = 'none';
@@ -737,7 +1014,6 @@ async function loadAndRender() {
     return;
   }
 
-  // Filter by product client-side (after fetch)
   const productFilter = document.getElementById('filterProduct').value;
   let filteredRows = rows;
   if (productFilter) {
@@ -745,26 +1021,413 @@ async function loadAndRender() {
   }
 
   populateProductFilter(rows);
-
   renderSummary(filteredRows);
   renderPriceTable(filteredRows);
   renderTrendChart(filteredRows);
   renderComparisonMatrix(filteredRows);
 }
 
-// ── Escape helpers ─────────────────────────────
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-function escAttr(str) {
-  return String(str).replace(/"/g, '&quot;');
+// ══════════════════════════════════════════════
+// PRODUCTS TAB
+// ══════════════════════════════════════════════
+
+function renderProductsMatrix(rows) {
+  const wrapEl  = document.getElementById('productsMatrixWrap');
+  const stateEl = document.getElementById('productsMatrixState');
+  const headEl  = document.getElementById('productsMatrixHead');
+  const bodyEl  = document.getElementById('productsMatrixBody');
+  const countEl = document.getElementById('productsRowCount');
+
+  if (!rows.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    stateEl.innerHTML = `<div class="icon">🔍</div><div class="label">No product data found.</div>`;
+    countEl.textContent = '0 rows';
+    return;
+  }
+
+  // Use the most recent scrape per competitor
+  const latestDate = {};
+  for (const r of rows) {
+    if (!latestDate[r.competitor] || r.scrape_date > latestDate[r.competitor]) {
+      latestDate[r.competitor] = r.scrape_date;
+    }
+  }
+  const latestRows = rows.filter(r => r.scrape_date === latestDate[r.competitor]);
+
+  const competitors = [...new Set(latestRows.map(r => r.competitor))].sort();
+  const products    = [...new Set(latestRows.map(r => r.product_name).filter(Boolean))].sort();
+
+  // cell[product][competitor] = { type, is_bundle }
+  const cell = {};
+  for (const r of latestRows) {
+    if (!r.product_name) continue;
+    if (!cell[r.product_name]) cell[r.product_name] = {};
+    cell[r.product_name][r.competitor] = {
+      type: r.product_type || '',
+      is_bundle: r.is_bundle,
+    };
+  }
+
+  countEl.textContent = rows.length + ' records';
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+
+  headEl.innerHTML = `<tr>
+    <th>Product / Service</th>
+    ${competitors.map(c =>
+      `<th><span class="competitor-dot" style="background:${competitorColor(c)}"></span>${escHtml(c)}</th>`
+    ).join('')}
+  </tr>`;
+
+  bodyEl.innerHTML = products.map(prod => {
+    const cells = competitors.map(comp => {
+      const entry = cell[prod] && cell[prod][comp];
+      if (!entry) return `<td><span class="matrix-cross">✗</span></td>`;
+      const typeBadge = entry.type
+        ? `<span class="product-type-badge">${escHtml(entry.type)}</span>` : '';
+      return `<td><span class="matrix-check">✓</span>${typeBadge}</td>`;
+    }).join('');
+    return `<tr><td style="font-weight:600;">${escHtml(prod)}</td>${cells}</tr>`;
+  }).join('');
 }
 
-// ── Tab switching ──────────────────────────────
+function renderProductsCatalog(rows) {
+  const wrapEl  = document.getElementById('productsCatalogWrap');
+  const stateEl = document.getElementById('productsCatalogState');
+  const bodyEl  = document.getElementById('productsTableBody');
+
+  if (!rows.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+
+  bodyEl.innerHTML = rows.map(r => {
+    const color = competitorColor(r.competitor);
+    const bundleBadge = r.is_bundle
+      ? `<span class="badge badge-green">Bundle</span>`
+      : `<span class="badge badge-gray">Single</span>`;
+    return `<tr>
+      <td><span class="competitor-dot" style="background:${color}"></span>${escHtml(r.competitor)}</td>
+      <td>${escHtml(r.scrape_date || '')}</td>
+      <td style="font-weight:600;">${escHtml(r.product_name || '—')}</td>
+      <td>${escHtml(r.product_type || '—')}</td>
+      <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(r.description || '')}">${escHtml(r.description || '—')}</td>
+      <td>${bundleBadge}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadAndRenderProducts() {
+  document.getElementById('productsMatrixState').style.display = 'flex';
+  document.getElementById('productsMatrixState').innerHTML = `<div class="spinner"></div><div class="label">Loading…</div>`;
+  document.getElementById('productsMatrixWrap').style.display = 'none';
+  document.getElementById('productsCatalogState').style.display = 'none';
+  document.getElementById('productsCatalogWrap').style.display = 'none';
+
+  const params = {
+    competitor: document.getElementById('productsFilterCompetitor').value || '',
+    date:       document.getElementById('productsFilterDate').value || '',
+  };
+
+  let rows = [];
+  try {
+    rows = await fetchJSON(buildURL('/api/products', params));
+  } catch (err) {
+    document.getElementById('productsMatrixState').style.display = 'flex';
+    document.getElementById('productsMatrixState').innerHTML = `
+      <div class="icon">⚠️</div>
+      <div class="label">Failed to load products: ${escHtml(String(err))}</div>`;
+    console.error('Products load error:', err);
+    return;
+  }
+
+  renderProductsMatrix(rows);
+  renderProductsCatalog(rows);
+}
+
+// ══════════════════════════════════════════════
+// REVIEWS TAB
+// ══════════════════════════════════════════════
+
+let activeReviewSource = 'trustpilot';
+
+function renderReviewsTable(rows, source) {
+  const stateEl = document.getElementById('reviewsTableState');
+  const wrapEl  = document.getElementById('reviewsTableWrap');
+  const bodyEl  = document.getElementById('reviewsTableBody');
+  const countEl = document.getElementById('reviewsRowCount');
+
+  if (!rows.length) {
+    wrapEl.style.display = 'none';
+    stateEl.style.display = 'flex';
+    stateEl.innerHTML = `<div class="icon">🔍</div><div class="label">No review data found.</div>`;
+    countEl.textContent = '0 rows';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+  countEl.textContent   = rows.length + ' row' + (rows.length !== 1 ? 's' : '');
+
+  bodyEl.innerHTML = rows.map(r => {
+    const color  = competitorColor(r.competitor);
+    const rating = r.overall_rating != null ? parseFloat(r.overall_rating).toFixed(1) : '—';
+    const count  = r.total_reviews  != null ? Number(r.total_reviews).toLocaleString() : '—';
+    const stars  = r.overall_rating != null ? renderStars(parseFloat(r.overall_rating)) : '';
+    return `<tr>
+      <td><span class="competitor-dot" style="background:${color}"></span>${escHtml(r.competitor)}</td>
+      <td>${escHtml(r.scrape_date || '')}</td>
+      <td>
+        <span class="rating-num">${rating}</span>
+        <span class="rating-stars">${stars}</span>
+      </td>
+      <td>${count}</td>
+      <td><span class="badge badge-gray">${escHtml(source)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderStars(rating) {
+  const full  = Math.floor(rating);
+  const half  = rating - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+function renderReviewsRatingChart(rows) {
+  const wrapEl  = document.getElementById('reviewsRatingChartWrap');
+  const stateEl = document.getElementById('reviewsRatingChartState');
+  destroyChart('reviewsRatingChart');
+
+  const byComp = {};
+  for (const r of rows) {
+    if (r.overall_rating == null) continue;
+    if (!byComp[r.competitor]) byComp[r.competitor] = {};
+    byComp[r.competitor][r.scrape_date] = parseFloat(r.overall_rating);
+  }
+
+  const competitors = Object.keys(byComp);
+  if (!competitors.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+
+  const allDates = [...new Set(rows.map(r => r.scrape_date).filter(Boolean))].sort();
+  const datasets = competitors.map(comp => {
+    const color = competitorColor(comp);
+    return {
+      label: comp,
+      data: allDates.map(d => byComp[comp][d] ?? null),
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: false,
+      tension: 0.35,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    };
+  });
+
+  createLineChart('reviewsRatingChart', allDates, datasets, v => v.toFixed(1) + '★');
+}
+
+function renderReviewsCountChart(rows) {
+  const wrapEl  = document.getElementById('reviewsCountChartWrap');
+  const stateEl = document.getElementById('reviewsCountChartState');
+  destroyChart('reviewsCountChart');
+
+  const byComp = {};
+  for (const r of rows) {
+    if (r.total_reviews == null) continue;
+    if (!byComp[r.competitor]) byComp[r.competitor] = {};
+    byComp[r.competitor][r.scrape_date] = Number(r.total_reviews);
+  }
+
+  const competitors = Object.keys(byComp);
+  if (!competitors.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+
+  const allDates = [...new Set(rows.map(r => r.scrape_date).filter(Boolean))].sort();
+  const datasets = competitors.map(comp => {
+    const color = competitorColor(comp);
+    return {
+      label: comp,
+      data: allDates.map(d => byComp[comp][d] ?? null),
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: false,
+      tension: 0.35,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    };
+  });
+
+  createLineChart('reviewsCountChart', allDates, datasets, v => v.toLocaleString());
+}
+
+async function loadAndRenderReviews() {
+  document.getElementById('reviewsTableState').style.display = 'flex';
+  document.getElementById('reviewsTableState').innerHTML = `<div class="spinner"></div><div class="label">Loading…</div>`;
+  document.getElementById('reviewsTableWrap').style.display = 'none';
+
+  const params = {
+    competitor: document.getElementById('reviewsFilterCompetitor').value || '',
+    startDate:  document.getElementById('reviewsFilterFrom').value || '',
+    endDate:    document.getElementById('reviewsFilterTo').value   || '',
+  };
+
+  let data = { trustpilot: [], google: [] };
+  try {
+    data = await fetchJSON(buildURL('/api/reviews', params));
+  } catch (err) {
+    document.getElementById('reviewsTableState').style.display = 'flex';
+    document.getElementById('reviewsTableState').innerHTML = `
+      <div class="icon">⚠️</div>
+      <div class="label">Failed to load reviews: ${escHtml(String(err))}</div>`;
+    console.error('Reviews load error:', err);
+    return;
+  }
+
+  const rows = data[activeReviewSource] || [];
+  renderReviewsTable(rows, activeReviewSource);
+  renderReviewsRatingChart(rows);
+  renderReviewsCountChart(rows);
+}
+
+// ══════════════════════════════════════════════
+// DIFFS TAB
+// ══════════════════════════════════════════════
+
+function renderDiffLine(line) {
+  const esc = escHtml(line);
+  if (line.startsWith('+++') || line.startsWith('---')) {
+    return `<span class="diff-line diff-line-hdr">${esc}</span>`;
+  }
+  if (line.startsWith('@@')) {
+    return `<span class="diff-line diff-line-hdr">${esc}</span>`;
+  }
+  if (line.startsWith('+')) {
+    return `<span class="diff-line diff-line-add">${esc}</span>`;
+  }
+  if (line.startsWith('-')) {
+    return `<span class="diff-line diff-line-rem">${esc}</span>`;
+  }
+  return `<span class="diff-line diff-line-ctx">${esc}</span>`;
+}
+
+function renderDiffText(diffText) {
+  if (!diffText || !diffText.trim()) {
+    return `<div class="diff-no-changes">No textual changes detected.</div>`;
+  }
+  const lines = diffText.split('\n');
+  return `<div class="diff-body" id="diffBody_${Math.random().toString(36).slice(2)}">
+    <pre class="diff-pre">${lines.map(renderDiffLine).join('\n')}</pre>
+  </div>`;
+}
+
+function renderDiffsList(rows) {
+  const stateEl  = document.getElementById('diffsState');
+  const listEl   = document.getElementById('diffsList');
+  const countEl  = document.getElementById('diffsCount');
+
+  if (!rows.length) {
+    stateEl.style.display = 'flex';
+    stateEl.innerHTML = `<div class="icon">🔍</div><div class="label">No diff records found.</div>`;
+    listEl.innerHTML = '';
+    countEl.textContent = '0 diffs';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  countEl.textContent = rows.length + ' diff' + (rows.length !== 1 ? 's' : '');
+
+  listEl.innerHTML = rows.map((r, idx) => {
+    const color     = competitorColor(r.competitor);
+    const addCount  = r.additions_count != null ? r.additions_count : '?';
+    const remCount  = r.removals_count  != null ? r.removals_count  : '?';
+    const bodyId    = `diffBody_${idx}`;
+    const hasDiff   = r.diff_text && r.diff_text.trim();
+
+    const diffBodyHtml = hasDiff
+      ? `<div class="diff-body" id="${bodyId}">
+           <pre class="diff-pre">${r.diff_text.split('\n').map(renderDiffLine).join('\n')}</pre>
+         </div>`
+      : `<div class="diff-no-changes">No textual changes detected.</div>`;
+
+    return `<div class="diff-item" id="diffItem_${idx}">
+      <div class="diff-item-header">
+        <div class="competitor-name">
+          <span class="competitor-dot" style="background:${color}"></span>
+          ${escHtml(r.competitor)}
+        </div>
+        <span class="diff-meta">${escHtml(r.diff_date || '')} · ${escHtml(r.page_type || 'homepage')}</span>
+        <div class="diff-counts">
+          <span class="diff-add-count">+${addCount} additions</span>
+          <span class="diff-rem-count">-${remCount} removals</span>
+        </div>
+        ${hasDiff ? `<button class="diff-toggle-btn" data-body="${bodyId}" onclick="toggleDiff(this)">▼ Show diff</button>` : ''}
+      </div>
+      ${diffBodyHtml}
+    </div>`;
+  }).join('');
+}
+
+function toggleDiff(btn) {
+  const bodyId = btn.getAttribute('data-body');
+  const body   = document.getElementById(bodyId);
+  if (!body) return;
+  const expanded = body.classList.toggle('expanded');
+  btn.textContent = expanded ? '▲ Hide diff' : '▼ Show diff';
+}
+
+async function loadAndRenderDiffs() {
+  document.getElementById('diffsState').style.display = 'flex';
+  document.getElementById('diffsState').innerHTML = `<div class="spinner"></div><div class="label">Loading…</div>`;
+  document.getElementById('diffsList').innerHTML = '';
+
+  const params = {
+    competitor: document.getElementById('diffsFilterCompetitor').value || '',
+    startDate:  document.getElementById('diffsFilterFrom').value || '',
+    endDate:    document.getElementById('diffsFilterTo').value   || '',
+  };
+
+  let rows = [];
+  try {
+    rows = await fetchJSON(buildURL('/api/diffs', params));
+  } catch (err) {
+    document.getElementById('diffsState').style.display = 'flex';
+    document.getElementById('diffsState').innerHTML = `
+      <div class="icon">⚠️</div>
+      <div class="label">Failed to load diffs: ${escHtml(String(err))}</div>`;
+    console.error('Diffs load error:', err);
+    return;
+  }
+
+  renderDiffsList(rows);
+}
+
+// ══════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════
+
+const tabLoaded = {};
+
 function switchTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tab === tabName);
@@ -773,18 +1436,38 @@ function switchTab(tabName) {
   document.querySelectorAll('.tab-panel').forEach(p => {
     p.classList.toggle('active', p.id === 'tab-' + tabName);
   });
+
+  // Lazy-load on first visit (or always for pricing which has its own apply button)
+  if (!tabLoaded[tabName]) {
+    tabLoaded[tabName] = true;
+    if (tabName === 'products') loadAndRenderProducts();
+    if (tabName === 'reviews')  loadAndRenderReviews();
+    if (tabName === 'diffs')    loadAndRenderDiffs();
+  }
 }
 
-// ── Init ───────────────────────────────────────
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+
 async function init() {
   // Default date range: last 30 days
-  document.getElementById('filterDateFrom').value = daysAgo(30);
-  document.getElementById('filterDateTo').value   = today();
+  const defaultFrom = daysAgo(30);
+  const defaultTo   = today();
 
-  // Load competitors for dropdown
+  document.getElementById('filterDateFrom').value   = defaultFrom;
+  document.getElementById('filterDateTo').value     = defaultTo;
+  document.getElementById('reviewsFilterFrom').value = defaultFrom;
+  document.getElementById('reviewsFilterTo').value   = defaultTo;
+  document.getElementById('diffsFilterFrom').value   = defaultFrom;
+  document.getElementById('diffsFilterTo').value     = defaultTo;
+
+  // Load competitors for all dropdowns
   try {
-    const competitors = await fetchJSON('/api/competitors');
-    populateCompetitorFilter(competitors);
+    allCompetitors = await fetchJSON('/api/competitors');
+    ['filterCompetitor', 'productsFilterCompetitor', 'reviewsFilterCompetitor', 'diffsFilterCompetitor'].forEach(id => {
+      populateCompetitorFilter(id, allCompetitors);
+    });
   } catch (e) {
     console.warn('Could not load competitors:', e);
   }
@@ -794,17 +1477,56 @@ async function init() {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // Filter controls
+  // ── Pricing filters ──
   document.getElementById('applyFilters').addEventListener('click', loadAndRender);
   document.getElementById('resetFilters').addEventListener('click', () => {
     document.getElementById('filterCompetitor').value = '';
-    document.getElementById('filterDateFrom').value   = daysAgo(30);
-    document.getElementById('filterDateTo').value     = today();
+    document.getElementById('filterDateFrom').value   = defaultFrom;
+    document.getElementById('filterDateTo').value     = defaultTo;
     document.getElementById('filterProduct').value    = '';
     loadAndRender();
   });
 
-  // Initial load
+  // ── Products filters ──
+  document.getElementById('productsApplyFilters').addEventListener('click', loadAndRenderProducts);
+  document.getElementById('productsResetFilters').addEventListener('click', () => {
+    document.getElementById('productsFilterCompetitor').value = '';
+    document.getElementById('productsFilterDate').value       = '';
+    loadAndRenderProducts();
+  });
+
+  // ── Reviews filters ──
+  document.getElementById('reviewsApplyFilters').addEventListener('click', loadAndRenderReviews);
+  document.getElementById('reviewsResetFilters').addEventListener('click', () => {
+    document.getElementById('reviewsFilterCompetitor').value = '';
+    document.getElementById('reviewsFilterFrom').value       = defaultFrom;
+    document.getElementById('reviewsFilterTo').value         = defaultTo;
+    loadAndRenderReviews();
+  });
+
+  // ── Reviews source tabs ──
+  document.querySelectorAll('.source-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeReviewSource = btn.dataset.source;
+      document.querySelectorAll('.source-tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.source === activeReviewSource);
+        b.setAttribute('aria-selected', b.dataset.source === activeReviewSource ? 'true' : 'false');
+      });
+      loadAndRenderReviews();
+    });
+  });
+
+  // ── Diffs filters ──
+  document.getElementById('diffsApplyFilters').addEventListener('click', loadAndRenderDiffs);
+  document.getElementById('diffsResetFilters').addEventListener('click', () => {
+    document.getElementById('diffsFilterCompetitor').value = '';
+    document.getElementById('diffsFilterFrom').value       = defaultFrom;
+    document.getElementById('diffsFilterTo').value         = defaultTo;
+    loadAndRenderDiffs();
+  });
+
+  // Initial load for pricing tab
+  tabLoaded['pricing'] = true;
   await loadAndRender();
 }
 
