@@ -379,7 +379,8 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
 
 def main() -> int:
     app = create_app()
-    app.run(host="0.0.0.0", port=DEFAULT_PORT)
+    port = int(os.environ.get("DASHBOARD_PORT", DEFAULT_PORT))
+    app.run(host="0.0.0.0", port=port)
     return 0
 
 

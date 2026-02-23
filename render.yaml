@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: competitor-intelligence
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=. python3 dashboard/server.py
+    envVars:
+      - key: DASHBOARD_PORT
+        value: 10000
+      - key: DASHBOARD_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_PATH
+        value: ./competitor_data.db
+      - key: PYTHON_VERSION
+        value: 3.11.0
