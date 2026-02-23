@@ -245,4 +245,5 @@ The developer must ensure:
 - Added per-scraper summary reporting (`name,status,rows_inserted,duration_seconds`) and robust `rows_inserted` calculation via pre/post table row counts.
 - Added tests in `tests/test_run_daily.py` for failure-tolerant sequencing, log-file creation, and summary output format.
 - **Learnings:** When scraper contracts only return booleans, before/after table counts provide a stable cross-scraper metric for inserted-row summaries.
+- **SKILLS_APPLIED:** karpathy-coding (Python orchestration with fault-tolerant sequential execution, logging, and row-count metrics)
 ---
