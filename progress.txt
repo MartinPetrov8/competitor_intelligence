@@ -287,5 +287,6 @@ The developer must ensure:
 - Replaced placeholder stub tabs with real JS modules (loadAndRenderReviews, loadAndRenderProducts, loadAndRenderDiffs)
 - Tab switching lazy-loads data on first visit; shared Chart.js helper + chart registry avoids canvas reuse leaks
 - Files changed: dashboard/static/index.html (replaced + extended), tests/test_dashboard_s11.py (new, 66 tests)
+- **SKILLS_APPLIED:** karpathy-coding (surgical frontend additions, shared Chart.js registry pattern, focused 66-test suite covering all new views)
 - **Learnings:** Base schema uses `total_reviews` (not `review_count`) and `page_url` (not `url`) in snapshots — always check PRAGMA table_info before writing test fixtures; Chart.js canvases must be destroyed before re-creation (charts registry pattern works reliably)
 ---
