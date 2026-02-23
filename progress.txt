@@ -290,3 +290,29 @@ The developer must ensure:
 - **SKILLS_APPLIED:** karpathy-coding (surgical frontend additions, shared Chart.js registry pattern, focused 66-test suite covering all new views)
 - **Learnings:** Base schema uses `total_reviews` (not `review_count`) and `page_url` (not `url`) in snapshots — always check PRAGMA table_info before writing test fixtures; Chart.js canvases must be destroyed before re-creation (charts registry pattern works reliably)
 ---
+
+## 2026-02-23 01:00 UTC - S-12: Basic auth and README
+- Added session-based password auth to Flask dashboard (`dashboard/server.py`)
+  - `before_request` guard redirects unauthenticated users to `/login` (except `/health`, `/login`)
+  - Password from `DASHBOARD_PASSWORD` env var (default `changeme`)
+  - Flask session signed with `SECRET_KEY` env var (auto-generated at startup if unset — document to set in prod)
+  - Timing-safe comparison via `secrets.compare_digest`
+  - `/login` (GET/POST) renders `dashboard/templates/login.html`; `/logout` clears session
+- Created `dashboard/templates/login.html`: dark-themed login form with error display
+- Updated `.env.example` with `SECRET_KEY` placeholder
+- Replaced stub `README.md` with full documentation: quick start, config table, scraper usage, cron instructions, systemd service, database schema, troubleshooting
+- Added `tests/test_auth.py`: 23 tests covering login page, unauthenticated redirect, correct/wrong/empty password, session persistence, logout, env-var password, default password
+- Updated existing dashboard test fixtures to call `c.post("/login", ...)` so they still work with auth enabled
+- All 145 tests pass; `mypy .` strict clean (17 files)
+- **Learnings:** Setting a persistent `SECRET_KEY` in production is critical — without it, every server restart logs all users out. Document this prominently in README. Flask templates require a `templates/` dir adjacent to the package (or configure `template_folder`); using `render_template` is much cleaner than inline HTML strings for login pages.
+- **SKILLS_APPLIED:** karpathy-coding
+---
+
+---
+
+## 2026-02-23 01:14 — Fixer: Verification pass
+- Ran full test suite: 145 passed, 0 failed
+- Ran `python3 run_daily.py` — exits 0, gracefully handles 404s on competitor pricing pages
+- No actual failures found — all tests green
+- **Learnings:** All 12 user stories fully implemented; project is production-ready
+---
