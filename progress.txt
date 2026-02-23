@@ -1,6 +1,91 @@
 # Competitor Tracker Setup — Progress
 
 ## Branch Status
+- Branch: feature/v2-scrapers-dashboard
+- Base: main
+- Status: Ready for development — baseline established 2026-02-23
+
+## Codebase Patterns
+
+### Stack & Language
+- Python 3.11, strict mypy (`mypy.ini` excludes `dashboard/` and `scrapers/`)
+- `from __future__ import annotations` at top of every module
+- Pure stdlib + requests + BeautifulSoup4 + Flask; no ORM
+
+### Module Structure
+Every scraper follows the same pattern:
+1. `@dataclass(frozen=True)` record class at module top
+2. `configure_logging()` helper (only called from `main()`)
+3. `_iter_competitors(conn)` — `conn.row_factory = sqlite3.Row`, returns fetchall()
+4. `_fetch(session, url) -> str | None` — try/except Timeout+RequestException, returns None on failure
+5. `extract_*()` — pure function (no I/O), accepts `competitor_id, html, source_url, scrape_date, scraped_at`
+6. `_ensure_*_schema(conn)` — PRAGMA table_info migration for new columns
+7. `_store_*()` — executemany or execute into DB
+8. `scrape_*(db_path)` — calls init_database, opens conn, iterates competitors, calls _fetch + extract + store, returns bool (any_success)
+9. `parse_args()` + `main() -> int` + `if __name__ == "__main__": raise SystemExit(main())`
+
+### Error Handling
+- Network errors: separate `except requests.Timeout` and `except requests.RequestException` — both log warning and `continue` (never raise)
+- DB errors in main(): `except sqlite3.Error as exc: logging.exception(...); return 1`
+- No bare `except Exception` in scrapers (only in main() with `# pragma: no cover`)
+- `cast(str, response.text)` pattern to satisfy mypy on response.text
+
+### Database Conventions
+- `sqlite3.connect(db_path)` used as context manager (`with sqlite3.connect(...) as conn`)
+- `conn.row_factory = sqlite3.Row` set in `_iter_competitors()` and dashboard store `_connect()`
+- Schema changes via `_ensure_*_schema()` with `PRAGMA table_info()` check before `ALTER TABLE`
+- `INSERT OR IGNORE` for idempotent competitor seeding
+- All timestamps: ISO 8601 strings; `scrape_date` = date only (`datetime.now(UTC).date().isoformat()`), `scraped_at` = full datetime
+- `conn.commit()` called after each competitor (not once at end) for partial-success safety
+
+### New v2 Tables (to be added)
+Schema uses `_v2` suffix; UNIQUE(competitor_id, scrape_date) enforces one row per day:
+- `prices_v2`: main_price + addons JSON array + currency + source_url
+- `products_v2`: 4 boolean flags (one_way/round_trip/hotel/visa_letter) + price per type
+
+### Test Conventions
+- All tests in `tests/` directory, file naming: `test_<module>.py`
+- Class-based `unittest.TestCase` with `setUp`/`tearDown` using `tempfile.TemporaryDirectory()`
+- DB path: `Path(self.tmp_dir.name) / "test_competitor_data.db"` initialized with `init_database()`
+- Network: patched with `unittest.mock.patch("requests.Session.get", side_effect=fake_get)`
+- MockResponse: local class with `.text`, `.status_code`, `.raise_for_status()` that raises `requests.HTTPError` on 4xx/5xx
+- Assertions: `assertAlmostEqual` for floats, `assertGreaterEqual` for counts, `assertIsNotNone` for optional fields
+- Tests import private helpers directly (`from scrapers.pricing import _is_noise_text`)
+
+### Dashboard (Flask)
+- `create_app(db_path) -> Flask` factory pattern — used by tests
+- `DashboardStore` class holds all SQL; endpoints are thin (3 lines: try/call store/return jsonify)
+- `_build_filters()` shared for `competitor`, `date`, `start_date`, `end_date` across all endpoints
+- `_metric_expr()` handles schema compatibility (checks PRAGMA columns, falls back gracefully)
+- Auth: `session[_AUTH_SESSION_KEY]` checked in `before_request`; `/login`, `/health`, `/static/*` are public
+- API response format: plain JSON array of dicts (no envelope); error: `{"error": "..."}` with 500 status
+- `_json_error(message, code)` helper returns `tuple[Any, int]`
+- Routes: GET `/api/prices`, `/api/products`, `/api/reviews`, `/api/diffs`, `/api/ab-tests`, `/api/competitors`
+- Filter params via `_query_param(name) -> str | None` (strips whitespace, returns None for empty)
+
+### Frontend (Vanilla JS, index.html)
+- Single-page app; tab switching with lazy-load on first visit
+- Chart.js 4 (CDN) for line trend charts; charts registry to destroy before re-creation
+- Tabs: Pricing, Products, Reviews, Site Changes (Diffs), A/B Tests
+- New v2 tabs to add: Pricing (one row/competitor + addons collapsible), Products (matrix ✅/❌), Site Changes (categorized)
+
+### Naming Conventions
+- Files: `snake_case.py`
+- Classes: `PascalCase` (dataclasses and Flask stores)
+- Functions/variables: `snake_case`; private helpers prefixed `_`
+- Constants: `UPPER_SNAKE_CASE`
+- DB columns: `snake_case`; table names: `snake_case` with `_v2` suffix for new tables
+
+### Key Utilities Available for Reuse
+- `init_db.init_database(db_path)` — call at top of every `scrape_*()` function
+- `_fetch(session, url) -> str | None` — copy the pattern; handles Timeout + RequestException
+- `_to_int(value)`, `_to_float(value)` — type-safe converters in reviews scrapers
+- `_extract_ld_json_objects(soup)` — shared between trustpilot and google scrapers
+- `_build_filters()` in DashboardStore — already handles all 4 filter params
+
+---
+
+## Prior Branch Status
 - Branch: feature/competitor-tracker-mvp
 - Base: main (initial commit)
 - Status: Ready for development
@@ -315,4 +400,21 @@ The developer must ensure:
 - Ran `python3 run_daily.py` — exits 0, gracefully handles 404s on competitor pricing pages
 - No actual failures found — all tests green
 - **Learnings:** All 12 user stories fully implemented; project is production-ready
+---
+
+## 2026-02-23 13:44 UTC - Fixer: No failures — all 169 tests passing
+- Ran full test suite: 169 passed, 0 failed
+- FAILURES FROM TESTER was "[missing: failures]" — no actual failures to fix
+- No changes needed; suite is green on feature/v2-scrapers-dashboard branch
+---
+
+## 2026-02-23 13:35 UTC - S-01: DB schema migration — prices_v2 and products_v2 tables
+- Added `prices_v2` table to `database/schema.py`: UNIQUE(competitor_id, scrape_date), main_price REAL, currency TEXT DEFAULT 'USD', addons TEXT (JSON array), source_url TEXT
+- Added `products_v2` table: UNIQUE(competitor_id, scrape_date), 4 boolean integer flags (one_way_offered, round_trip_offered, hotel_offered, visa_letter_offered) + 4 nullable price columns
+- Added indexes: idx_prices_v2_competitor_date, idx_products_v2_competitor_date
+- `init_db.py` unchanged — already imports TABLES_SQL and INDEXES_SQL from schema.py, so new tables are created automatically
+- Added `tests/test_schema_v2.py` with 19 tests: PricesV2SchemaTests (8), ProductsV2SchemaTests (8), InitDbV2IntegrationTests (3)
+- All 169 tests pass (150 pre-existing + 19 new)
+- **Learnings:** init_db.py's import-based design means schema additions only require changes to database/schema.py — no init_db.py changes needed
+- **SKILLS_APPLIED:** karpathy-coding
 ---
