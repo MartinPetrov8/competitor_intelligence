@@ -418,3 +418,16 @@ The developer must ensure:
 - **Learnings:** init_db.py's import-based design means schema additions only require changes to database/schema.py — no init_db.py changes needed
 - **SKILLS_APPLIED:** karpathy-coding
 ---
+
+## 2026-02-23 14:41 UTC - S-02: Pricing scraper v2 — one clean row per competitor
+- Rewrote `scrapers/pricing.py` with `PriceV2Record` + `AddonItem` frozen dataclasses
+- `_is_noise_text()`: filters JS blobs (self.__next_f, jQuery, CDATA, window.__NEXT, function()), text > 300 chars
+- `_extract_from_next_data()`: parses `__NEXT_DATA__` JSON for Next.js sites (onwardticket.com, vizafly.com); finds min price as main, rest as addons
+- `extract_pricing_v2()`: pure function, uses BS4 text nodes + PRICE_PATTERN, skips addon-only patterns `(+$X)`, picks lowest non-addon price as main
+- `_ensure_prices_v2_schema()`, `_store_price_v2()` with `INSERT OR REPLACE`, `scrape_pricing()` rotates 3 UA strings + 2s delay
+- `prices_v2` UNIQUE(competitor_id, scrape_date) enforced — idempotent on second run
+- Updated `tests/test_pricing_scraper.py` to v2 API; added `tests/test_pricing_v2.py` (36 tests: NoiseDetectionTests, AddonExtractionTests, NextDataExtractionTests, ExtractPricingV2Tests, ScrapePricingIntegrationTests)
+- All 205 tests pass; mypy clean
+- **Learnings:** `_ADDON_ONLY_PATTERN` check + `"(+" in text` guard prevents addon deltas from being mistaken as main price. MIN price strategy works well for "from $X" hero copy patterns.
+- **SKILLS_APPLIED:** karpathy-coding | web-scraping
+---

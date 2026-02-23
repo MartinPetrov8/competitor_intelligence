@@ -150,6 +150,7 @@ TABLES_SQL: Final[list[str]] = [
         hotel_price REAL,
         visa_letter_offered INTEGER NOT NULL DEFAULT 0,
         visa_letter_price REAL,
+        source_url TEXT,
         UNIQUE(competitor_id, scrape_date),
         FOREIGN KEY (competitor_id) REFERENCES competitors(id)
     );

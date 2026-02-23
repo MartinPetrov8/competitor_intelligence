@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import secrets
@@ -94,20 +95,33 @@ class DashboardStore:
                 c.domain AS competitor,
                 p.scrape_date,
                 p.scraped_at,
-                p.product_name,
-                p.tier_name,
+                p.main_price,
                 p.currency,
-                p.price_amount,
-                p.bundle_info,
+                p.addons,
                 p.source_url,
-                p.raw_text
-            FROM prices p
+                LAG(p.main_price) OVER (PARTITION BY p.competitor_id ORDER BY p.scrape_date) AS prev_price
+            FROM prices_v2 p
             JOIN competitors c ON c.id = p.competitor_id
             {where_clause}
-            ORDER BY p.scrape_date DESC, c.domain ASC, p.id DESC
+            ORDER BY p.scrape_date DESC, c.domain ASC
         """
         with self._connect() as conn:
-            return [dict(row) for row in conn.execute(query, params).fetchall()]
+            rows = [dict(row) for row in conn.execute(query, params).fetchall()]
+            for row in rows:
+                # Parse addons JSON
+                try:
+                    row['addons'] = json.loads(row['addons']) if row['addons'] else []
+                except Exception:
+                    row['addons'] = []
+                # Price change indicator
+                if row.get('prev_price') is not None and row.get('main_price') is not None:
+                    diff = row['main_price'] - row['prev_price']
+                    row['price_change'] = round(diff, 2)
+                    row['price_change_direction'] = 'up' if diff > 0 else ('down' if diff < 0 else 'same')
+                else:
+                    row['price_change'] = None
+                    row['price_change_direction'] = 'none'
+            return rows
 
     def fetch_products(
         self, competitor: str | None, date_value: str | None, start_date: str | None, end_date: str | None
@@ -118,15 +132,18 @@ class DashboardStore:
                 c.domain AS competitor,
                 p.scrape_date,
                 p.scraped_at,
-                p.product_name,
-                p.product_type,
-                p.description,
-                p.is_bundle,
-                p.source_url
-            FROM products p
+                p.one_way_offered,
+                p.one_way_price,
+                p.round_trip_offered,
+                p.round_trip_price,
+                p.hotel_offered,
+                p.hotel_price,
+                p.visa_letter_offered,
+                p.visa_letter_price
+            FROM products_v2 p
             JOIN competitors c ON c.id = p.competitor_id
             {where_clause}
-            ORDER BY p.scrape_date DESC, c.domain ASC, p.id DESC
+            ORDER BY p.scrape_date DESC, c.domain ASC
         """
         with self._connect() as conn:
             return [dict(row) for row in conn.execute(query, params).fetchall()]
