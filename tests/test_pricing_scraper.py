@@ -1,5 +1,12 @@
+"""Legacy pricing scraper tests — updated for v2 API (pricing.py rewrite).
+
+The v2 rewrite replaced extract_price_records() with extract_pricing_v2() and
+scrapes into prices_v2 (one row per competitor per day). These tests have been
+updated to use the new API while preserving all behavioural coverage.
+"""
 from __future__ import annotations
 
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -9,7 +16,12 @@ from unittest.mock import patch
 import requests
 
 from init_db import init_database
-from scrapers.pricing import REQUEST_TIMEOUT_SECONDS, _is_noise_text, extract_price_records, scrape_pricing
+from scrapers.pricing import (
+    REQUEST_TIMEOUT_SECONDS,
+    _is_noise_text,
+    extract_pricing_v2,
+    scrape_pricing,
+)
 
 
 class MockResponse:
@@ -31,14 +43,14 @@ class PricingScraperTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp_dir.cleanup()
 
-    def test_extract_price_records_parses_product_name_price_and_currency(self) -> None:
+    def test_extract_pricing_v2_parses_main_price_and_currency(self) -> None:
         html = """
         <section>
           <h2>One Way Ticket</h2>
           <p>From $12.99 per booking</p>
         </section>
         """
-        records = extract_price_records(
+        record = extract_pricing_v2(
             competitor_id=1,
             html=html,
             source_url="https://example.com/pricing",
@@ -46,18 +58,18 @@ class PricingScraperTests(unittest.TestCase):
             scraped_at="2026-02-22T23:00:00+00:00",
         )
 
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].product_name, "One Way Ticket")
-        self.assertEqual(records[0].currency, "USD")
-        self.assertAlmostEqual(records[0].price_usd, 12.99)
-        self.assertIn("$12.99", records[0].raw_text)
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record.currency, "USD")
+        self.assertAlmostEqual(record.main_price, 12.99)  # type: ignore[arg-type]
+        self.assertEqual(record.competitor_id, 1)
 
     def test_scrape_pricing_continues_on_timeout_and_http_errors(self) -> None:
         calls: list[tuple[str, int]] = []
 
         def fake_get(url: str, timeout: int) -> MockResponse:
             calls.append((url, timeout))
-            if "onwardticket.com" in url and url.endswith("/pricing"):
+            if "onwardticket.com" in url and "best" not in url and url.endswith("/pricing"):
                 return MockResponse("<h2>Starter</h2><p>$10</p>")
             if "bestonwardticket.com" in url:
                 raise requests.Timeout("timed out")
@@ -75,43 +87,36 @@ class PricingScraperTests(unittest.TestCase):
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT competitor_id, product_name, price_usd, currency, bundle_info, scraped_at FROM prices"
+                "SELECT competitor_id, main_price, currency, scraped_at FROM prices_v2"
             ).fetchall()
 
         self.assertGreaterEqual(len(rows), 1)
         for row in rows:
             self.assertIsNotNone(row["competitor_id"])
-            self.assertTrue(row["product_name"])
-            self.assertIsNotNone(row["price_usd"])
+            self.assertIsNotNone(row["main_price"])
             self.assertTrue(row["currency"])
             self.assertIsNotNone(row["scraped_at"])
 
-
-    def test_extract_price_records_skips_js_noise_in_raw_text(self) -> None:
+    def test_extract_pricing_v2_skips_js_noise_in_raw_text(self) -> None:
         """Regression test: pricing scraper must not store JS code blocks as price records.
 
         Previously the scraper extracted any text matching the price pattern, including
         Next.js serialized JS blobs like self.__next_f.push([...,"$12"...]) and
-        long HTML strings, resulting in 38% of stored records being noise.
-        The fix adds _is_noise_text filtering: skip rows where raw_text > 500 chars
-        OR contains known JS indicators like 'self.__next_f', '<![CDATA[', etc.
+        long HTML strings, resulting in JS noise in DB rows.
+        The fix adds _is_noise_text filtering.
         """
-        # A realistic Next.js noise blob containing a price pattern buried in JS
         js_blob = 'self.__next_f.push([1,"<div class=\\"price\\">$9.99</div>"])' + " x" * 250
         clean_html = f"""
         <html><body>
-          <!-- Legitimate price -->
           <section>
             <h2>Basic Plan</h2>
             <p>Only $9.99 per month</p>
           </section>
-          <!-- Next.js noise: a script text node containing a price match but should be skipped -->
           <script>{js_blob}</script>
-          <!-- Another JS noise pattern -->
           <script>jQuery(document).ready(function(){{ var p = "$15.00"; }});</script>
         </body></html>
         """
-        records = extract_price_records(
+        record = extract_pricing_v2(
             competitor_id=3,
             html=clean_html,
             source_url="https://example.com/pricing",
@@ -119,10 +124,10 @@ class PricingScraperTests(unittest.TestCase):
             scraped_at="2026-02-23T09:00:00+00:00",
         )
 
-        # Only the clean price should be extracted; the JS blobs should be skipped
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].product_name, "Basic Plan")
-        self.assertAlmostEqual(records[0].price_usd, 9.99)
+        # The clean price should be extracted
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertAlmostEqual(record.main_price, 9.99)  # type: ignore[arg-type]
         # Verify the noise text would have been filtered
         self.assertTrue(_is_noise_text(js_blob), "JS blob should be detected as noise")
         self.assertFalse(_is_noise_text("Only $9.99 per month"), "Clean text should not be detected as noise")
@@ -130,7 +135,7 @@ class PricingScraperTests(unittest.TestCase):
     def test_is_noise_text_detects_known_js_patterns(self) -> None:
         """Unit test for _is_noise_text helper — covers all known JS/HTML noise indicators."""
         # Should detect as noise
-        self.assertTrue(_is_noise_text("self.__next_f.push([1,\"hello $5\"])"))
+        self.assertTrue(_is_noise_text('self.__next_f.push([1,"hello $5"])'))
         self.assertTrue(_is_noise_text("/* <![CDATA[ */ var price = '$10'; /* ]]> */"))
         self.assertTrue(_is_noise_text("gform.initializeOnLoaded(function(){ return $20; })"))
         self.assertTrue(_is_noise_text("jQuery(document).ready(function(){ })"))
