@@ -110,7 +110,8 @@ class TestHtmlStructure:
     """Verify required UI elements are present in the served HTML."""
 
     def _html(self, client: FlaskClient) -> str:
-        return client.get("/").data.decode("utf-8")
+        data: bytes = client.get("/").data
+        return data.decode("utf-8")
 
     def test_has_pricing_tab_button(self, client: FlaskClient) -> None:
         assert "data-tab=\"pricing\"" in self._html(client)
