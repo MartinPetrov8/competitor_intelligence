@@ -259,3 +259,33 @@ The developer must ensure:
 - **Learnings:** Using a dedicated data-store layer for API queries keeps endpoint handlers thin and ensures filtering logic stays consistent across all data types.
 - **SKILLS_APPLIED:** karpathy-coding (Flask API design, shared query/filter abstractions, schema-compatible SQL, focused tests)
 ---
+
+## 2026-02-23 00:30 UTC - S-10: Dashboard frontend — pricing view
+- Implemented `dashboard/static/index.html` as a complete vanilla-JS single-page dashboard.
+- Pricing tab includes: competitor/date-range/product filters, summary chips, pricing table with color-coded price badges, Chart.js 4 line trend chart per competitor, and a competitor × product comparison matrix.
+- Loading spinner, empty, and error states for all components.
+- Responsive layout with CSS media queries; accessibility with aria-label and role attributes.
+- Added `/` route to `dashboard/server.py` (serves `index.html` via `send_from_directory`).
+- Added `/api/competitors` endpoint and `fetch_competitors()` store method.
+- Discovered: competitors table has `id`, `domain`, `base_url`, `created_at` — no `name` column.
+- Tests in `tests/test_dashboard_frontend.py`: 36 tests covering route (200/HTML), structural HTML elements, /api/competitors content, and pricing API field compatibility.
+- **Learnings:** Flask's default `static_folder` path is relative to the module file — use `Path(__file__).parent / "static"` with `send_from_directory` to serve index.html at `/`. The competitors table schema uses `domain` + `base_url` (no separate `name` field).
+- **SKILLS_APPLIED:** karpathy-coding (surgical server changes, thin route handlers, store method, focused tests matching frontend contract)
+---
+
+## 2026-02-23 - S-10 (retry): Dashboard frontend — pricing view (typecheck fix)
+- Fixed mypy `no-any-return` error in `tests/test_dashboard_frontend.py:_html()`
+- Root cause: `FlaskClient.get().data` is typed as `Any` in Flask stubs; adding explicit `data: bytes` annotation lets mypy infer `.decode()` → `str`
+- Change: one-line annotation `data: bytes = client.get("/").data` before the return
+- **Learnings:** When Flask stubs expose `.data` as `Any`, always annotate the intermediate variable as `bytes` before calling `.decode()`; avoids `no-any-return` warnings throughout test helpers
+---
+
+## 2026-02-23 00:42 UTC - S-11: Dashboard frontend — reviews and products views
+- Implemented full Reviews tab: Trustpilot/Google source pill-tabs, rating trend chart, review-count trend chart, latest ratings table, date + competitor filters
+- Implemented full Products tab: competitor × product comparison matrix (✓/✗ with product-type badge), full catalog table with bundle badge, date + competitor filters
+- Implemented full Diffs tab: per-diff expandable viewer with syntax-highlighted unified diff (green additions, red removals, blue headers), date + competitor filters
+- Replaced placeholder stub tabs with real JS modules (loadAndRenderReviews, loadAndRenderProducts, loadAndRenderDiffs)
+- Tab switching lazy-loads data on first visit; shared Chart.js helper + chart registry avoids canvas reuse leaks
+- Files changed: dashboard/static/index.html (replaced + extended), tests/test_dashboard_s11.py (new, 66 tests)
+- **Learnings:** Base schema uses `total_reviews` (not `review_count`) and `page_url` (not `url`) in snapshots — always check PRAGMA table_info before writing test fixtures; Chart.js canvases must be destroyed before re-creation (charts registry pattern works reliably)
+---
