@@ -161,6 +161,7 @@ def test_pricing_scraper(test_db):
 - **Competitor list:** Hardcoded in scrapers or config file
 - **Scrape deduplication:** When scraping multiple paths for one competitor, deduplicate by stable semantic keys before DB insert.
 - **Snapshot diffs:** Normalize HTML with stripped text nodes and timestamp tokenization before `difflib.unified_diff` to reduce noisy whitespace/timestamp-only diffs.
+- **A/B detection:** Scan homepage HTML plus `<script src>` and inline script content; match tools using a signature map and persist only positive detections with compact evidence snippets.
 
 ### Definition of Done Checklist
 The developer must ensure:
@@ -225,4 +226,14 @@ The developer must ensure:
 - Added tests in `tests/test_reviews_google.py` for parser extraction and end-to-end DB persistence with partial failures.
 - **Learnings:** Google review metrics are inconsistent across pages, so layered extraction (JSON-LD first, then semantic HTML tags, then text regex fallback) improves robustness.
 - **SKILLS_APPLIED:** web-scraping (Google review extraction with structured + fallback parsers)
+---
+
+## 2026-02-23 00:08 UTC - S-7: A/B test detection module
+- Implemented `scrapers/ab_tests.py` with homepage scanning for known A/B testing frameworks and robust timeout/HTTP error handling.
+- Added signature detection for 7 frameworks: Optimizely, VWO, Google Optimize, LaunchDarkly, Adobe Target, Split, and Convert.
+- Added persistence flow into `ab_tests` table (per competitor/date/tool) with evidence snippets for matched signatures.
+- Added CLI entrypoint support so `python3 -m scrapers.ab_tests` runs safely and exits with proper status codes.
+- Added tests in `tests/test_ab_tests_scraper.py` for multi-signature detection and end-to-end DB persistence with partial scrape failures.
+- **Learnings:** A/B framework presence is most reliably detected by searching full HTML plus script `src` attributes and inline script text, then storing short context evidence to aid dashboard debugging.
+- **SKILLS_APPLIED:** web-scraping (homepage script-signature detection and resilient persistence)
 ---
