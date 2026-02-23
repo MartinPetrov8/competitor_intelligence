@@ -122,6 +122,38 @@ TABLES_SQL: Final[list[str]] = [
         FOREIGN KEY (competitor_id) REFERENCES competitors(id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS prices_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        competitor_id INTEGER NOT NULL,
+        scrape_date TEXT NOT NULL,
+        scraped_at TEXT NOT NULL,
+        main_price REAL,
+        currency TEXT NOT NULL DEFAULT 'USD',
+        addons TEXT,
+        source_url TEXT,
+        UNIQUE(competitor_id, scrape_date),
+        FOREIGN KEY (competitor_id) REFERENCES competitors(id)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS products_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        competitor_id INTEGER NOT NULL,
+        scrape_date TEXT NOT NULL,
+        scraped_at TEXT NOT NULL,
+        one_way_offered INTEGER NOT NULL DEFAULT 0,
+        one_way_price REAL,
+        round_trip_offered INTEGER NOT NULL DEFAULT 0,
+        round_trip_price REAL,
+        hotel_offered INTEGER NOT NULL DEFAULT 0,
+        hotel_price REAL,
+        visa_letter_offered INTEGER NOT NULL DEFAULT 0,
+        visa_letter_price REAL,
+        UNIQUE(competitor_id, scrape_date),
+        FOREIGN KEY (competitor_id) REFERENCES competitors(id)
+    );
+    """,
 ]
 
 INDEXES_SQL: Final[list[str]] = [
@@ -132,4 +164,6 @@ INDEXES_SQL: Final[list[str]] = [
     "CREATE INDEX IF NOT EXISTS idx_reviews_trustpilot_competitor_date ON reviews_trustpilot (competitor_id, scrape_date);",
     "CREATE INDEX IF NOT EXISTS idx_reviews_google_competitor_date ON reviews_google (competitor_id, scrape_date);",
     "CREATE INDEX IF NOT EXISTS idx_ab_tests_competitor_date ON ab_tests (competitor_id, scrape_date);",
+    "CREATE INDEX IF NOT EXISTS idx_prices_v2_competitor_date ON prices_v2 (competitor_id, scrape_date);",
+    "CREATE INDEX IF NOT EXISTS idx_products_v2_competitor_date ON products_v2 (competitor_id, scrape_date);",
 ]
