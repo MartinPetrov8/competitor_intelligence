@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 from init_db import DEFAULT_DB_PATH, init_database
 
@@ -162,6 +162,11 @@ class DashboardStore:
         with self._connect() as conn:
             return [dict(row) for row in conn.execute(query, params).fetchall()]
 
+    def fetch_competitors(self) -> list[dict[str, Any]]:
+        query = "SELECT id, domain, base_url FROM competitors ORDER BY domain ASC"
+        with self._connect() as conn:
+            return [dict(row) for row in conn.execute(query).fetchall()]
+
     def fetch_reviews(
         self, competitor: str | None, date_value: str | None, start_date: str | None, end_date: str | None
     ) -> dict[str, list[dict[str, Any]]]:
@@ -236,6 +241,12 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
     store = DashboardStore(db_path)
 
     app = Flask(__name__)
+
+    _static_dir = Path(__file__).parent / "static"
+
+    @app.route("/")
+    def index() -> Any:
+        return send_from_directory(str(_static_dir), "index.html")
 
     @app.get("/health")
     def health() -> Any:
@@ -315,6 +326,15 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
         except sqlite3.Error:
             logging.exception("Failed to load A/B testing data")
             return _json_error("Failed to load A/B testing data")
+
+    @app.get("/api/competitors")
+    def api_competitors() -> Any:
+        try:
+            data = store.fetch_competitors()
+            return jsonify(data)
+        except sqlite3.Error:
+            logging.exception("Failed to load competitors")
+            return _json_error("Failed to load competitors")
 
     return app
 

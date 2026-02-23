@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Competitor Intelligence Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    .header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: .02em; }
+    .header .subtitle { font-size: .8rem; opacity: .65; margin-top: .15rem; }
+    .header .logo { font-size: 1.6rem; }
+    .last-updated { margin-left: auto; font-size: .75rem; opacity: .6; white-space: nowrap; }
+
+    /* ── Nav tabs ── */
+    .tab-bar {
+      background: #fff;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      padding: .75rem 1.25rem;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: .9rem;
+      font-weight: 500;
+      color: #64748b;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: #0f172a; }
+    .tab-btn.active { color: #2563eb; border-bottom-color: #2563eb; }
+
+    /* ── Main content ── */
+    .content { padding: 1.5rem 2rem; max-width: 1400px; margin: 0 auto; }
+
+    /* ── Filter bar ── */
+    .filters {
+      background: #fff;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      align-items: flex-end;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      margin-bottom: 1.25rem;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: .25rem; }
+    .filter-group label { font-size: .75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+    .filter-group select,
+    .filter-group input[type="date"] {
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: .4rem .65rem;
+      font-size: .875rem;
+      background: #f8fafc;
+      color: #1a1a2e;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .filter-group select:focus,
+    .filter-group input[type="date"]:focus { border-color: #2563eb; }
+    .btn {
+      padding: .45rem 1rem;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: .875rem;
+      font-weight: 600;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { opacity: .9; }
+    .btn-secondary { background: #e2e8f0; color: #475569; }
+    .btn-secondary:hover { opacity: .8; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+    }
+    .card-header {
+      padding: .9rem 1.25rem;
+      font-weight: 700;
+      font-size: .95rem;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    .card-body { padding: 1.25rem; }
+
+    /* ── Pricing table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    thead th {
+      background: #f8fafc;
+      padding: .65rem 1rem;
+      text-align: left;
+      font-weight: 700;
+      color: #475569;
+      font-size: .8rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody td { padding: .65rem 1rem; color: #1e293b; }
+    .price-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      font-weight: 700;
+      color: #15803d;
+    }
+    .price-badge.high { color: #dc2626; }
+    .price-badge.mid { color: #d97706; }
+    .competitor-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-right: .35rem;
+    }
+
+    /* ── Chart container ── */
+    .chart-container { position: relative; height: 300px; }
+
+    /* ── Loading / empty states ── */
+    .state-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 1rem;
+      gap: .75rem;
+      color: #94a3b8;
+    }
+    .state-box .icon { font-size: 2.5rem; }
+    .state-box .label { font-size: .9rem; font-weight: 500; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Summary chips ── */
+    .summary-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      margin-bottom: 1.25rem;
+    }
+    .chip {
+      background: #fff;
+      border-radius: 8px;
+      padding: .75rem 1.1rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.07);
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+      flex: 1;
+      min-width: 150px;
+    }
+    .chip .chip-label { font-size: .72rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+    .chip .chip-value { font-size: 1.35rem; font-weight: 800; color: #1e293b; }
+    .chip .chip-sub { font-size: .75rem; color: #94a3b8; }
+
+    /* ── Tab panels ── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      padding: .15rem .5rem;
+      border-radius: 999px;
+      font-size: .72rem;
+      font-weight: 700;
+    }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-gray { background: #f1f5f9; color: #475569; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .content { padding: 1rem; }
+      .header { padding: .75rem 1rem; }
+      .tab-bar { padding: 0 1rem; }
+      .chip .chip-value { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─────────── Header ─────────── -->
+<header class="header">
+  <div class="logo">📊</div>
+  <div>
+    <div class="header h1">Competitor Intelligence Tracker</div>
+    <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
+  </div>
+  <div class="last-updated" id="lastUpdated"></div>
+</header>
+
+<!-- ─────────── Tab bar ─────────── -->
+<nav class="tab-bar" role="tablist">
+  <button class="tab-btn active" data-tab="pricing" role="tab" aria-selected="true">💰 Pricing</button>
+  <button class="tab-btn" data-tab="products" role="tab">📦 Products</button>
+  <button class="tab-btn" data-tab="reviews" role="tab">⭐ Reviews</button>
+  <button class="tab-btn" data-tab="diffs" role="tab">🔄 Site Diffs</button>
+  <button class="tab-btn" data-tab="abtests" role="tab">🧪 A/B Tests</button>
+</nav>
+
+<!-- ─────────── Main content ─────────── -->
+<main class="content">
+
+  <!-- ════ PRICING TAB ════ -->
+  <section class="tab-panel active" id="tab-pricing">
+
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-group">
+        <label for="filterCompetitor">Competitor</label>
+        <select id="filterCompetitor">
+          <option value="">All competitors</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="filterDateFrom">From</label>
+        <input type="date" id="filterDateFrom" />
+      </div>
+      <div class="filter-group">
+        <label for="filterDateTo">To</label>
+        <input type="date" id="filterDateTo" />
+      </div>
+      <div class="filter-group">
+        <label for="filterProduct">Product</label>
+        <select id="filterProduct">
+          <option value="">All products</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="applyFilters">Apply</button>
+      <button class="btn btn-secondary" id="resetFilters">Reset</button>
+    </div>
+
+    <!-- Summary chips -->
+    <div class="summary-bar" id="pricingSummary"></div>
+
+    <!-- Latest prices table -->
+    <div class="card" id="priceTableCard">
+      <div class="card-header">
+        📋 Latest Prices
+        <span class="badge badge-gray" id="priceRowCount" style="margin-left:auto;">—</span>
+      </div>
+      <div class="card-body">
+        <div id="priceTableState" class="state-box">
+          <div class="spinner"></div>
+          <div class="label">Loading pricing data…</div>
+        </div>
+        <div class="table-wrap" id="priceTableWrap" style="display:none;">
+          <table id="priceTable" aria-label="Competitor pricing table">
+            <thead>
+              <tr>
+                <th>Competitor</th>
+                <th>Date</th>
+                <th>Product</th>
+                <th>Tier</th>
+                <th>Price</th>
+                <th>Bundle</th>
+              </tr>
+            </thead>
+            <tbody id="priceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trend chart -->
+    <div class="card">
+      <div class="card-header">📈 Price Trend Over Time</div>
+      <div class="card-body">
+        <div id="chartState" class="state-box" style="display:none;">
+          <div class="icon">📉</div>
+          <div class="label">No trend data available for the selected filters.</div>
+        </div>
+        <div class="chart-container" id="chartWrap">
+          <canvas id="priceTrendChart" aria-label="Price trend line chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparison matrix: latest price per competitor × product -->
+    <div class="card">
+      <div class="card-header">🗂️ Competitor × Product Comparison</div>
+      <div class="card-body">
+        <div id="matrixState" class="state-box" style="display:none;">
+          <div class="icon">🔍</div>
+          <div class="label">No comparison data available.</div>
+        </div>
+        <div class="table-wrap" id="matrixWrap" style="display:none;">
+          <table id="matrixTable" aria-label="Competitor product comparison matrix">
+            <thead id="matrixHead"></thead>
+            <tbody id="matrixBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════ PRODUCTS TAB ════ -->
+  <section class="tab-panel" id="tab-products">
+    <div class="card">
+      <div class="card-header">📦 Product Catalog</div>
+      <div class="card-body">
+        <div class="state-box" id="productsPlaceholder">
+          <div class="icon">🚧</div>
+          <div class="label">Products view — coming in next release</div>
+        </div>
+        <div class="table-wrap" id="productsTableWrap" style="display:none;">
+          <table id="productsTable" aria-label="Products catalog table">
+            <thead>
+              <tr>
+                <th>Competitor</th>
+                <th>Date</th>
+                <th>Product</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Bundle</th>
+              </tr>
+            </thead>
+            <tbody id="productsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ REVIEWS TAB ════ -->
+  <section class="tab-panel" id="tab-reviews">
+    <div class="card">
+      <div class="card-header">⭐ Review Metrics</div>
+      <div class="card-body">
+        <div class="state-box" id="reviewsPlaceholder">
+          <div class="icon">🚧</div>
+          <div class="label">Reviews view — coming in next release</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ DIFFS TAB ════ -->
+  <section class="tab-panel" id="tab-diffs">
+    <div class="card">
+      <div class="card-header">🔄 Website Changes</div>
+      <div class="card-body">
+        <div class="state-box" id="diffsPlaceholder">
+          <div class="icon">🚧</div>
+          <div class="label">Site diffs view — coming in next release</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════ A/B TESTS TAB ════ -->
+  <section class="tab-panel" id="tab-abtests">
+    <div class="card">
+      <div class="card-header">🧪 A/B Test Detection</div>
+      <div class="card-body">
+        <div class="state-box" id="abtestsPlaceholder">
+          <div class="icon">🚧</div>
+          <div class="label">A/B test detection view — coming in next release</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ══════════════════════════════════════════════
+   Competitor Intelligence Dashboard — Pricing
+   Vanilla JS, Chart.js 4
+══════════════════════════════════════════════ */
+
+// ── Competitor colour palette ──────────────────
+const COLORS = [
+  '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#d97706',
+  '#0891b2', '#db2777', '#65a30d',
+];
+let colorMap = {};
+
+function competitorColor(domain) {
+  if (!colorMap[domain]) {
+    const idx = Object.keys(colorMap).length % COLORS.length;
+    colorMap[domain] = COLORS[idx];
+  }
+  return colorMap[domain];
+}
+
+// ── Date helpers ───────────────────────────────
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── API calls ──────────────────────────────────
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+  return res.json();
+}
+
+function buildPriceURL(params) {
+  const qs = new URLSearchParams();
+  if (params.competitor) qs.set('competitor', params.competitor);
+  if (params.startDate)  qs.set('start_date', params.startDate);
+  if (params.endDate)    qs.set('end_date', params.endDate);
+  const q = qs.toString();
+  return '/api/prices' + (q ? '?' + q : '');
+}
+
+// ── Chart singleton ────────────────────────────
+let trendChart = null;
+
+function destroyChart() {
+  if (trendChart) {
+    trendChart.destroy();
+    trendChart = null;
+  }
+}
+
+// ── Render helpers ─────────────────────────────
+
+function renderSummary(rows) {
+  const el = document.getElementById('pricingSummary');
+  if (!rows.length) { el.innerHTML = ''; return; }
+
+  const competitors = [...new Set(rows.map(r => r.competitor))];
+  const prices = rows.map(r => r.price_amount).filter(p => p != null);
+  const minPrice = prices.length ? Math.min(...prices) : null;
+  const maxPrice = prices.length ? Math.max(...prices) : null;
+  const dates = [...new Set(rows.map(r => r.scrape_date))].sort();
+
+  el.innerHTML = `
+    <div class="chip">
+      <div class="chip-label">Competitors</div>
+      <div class="chip-value">${competitors.length}</div>
+      <div class="chip-sub">tracked</div>
+    </div>
+    <div class="chip">
+      <div class="chip-label">Price records</div>
+      <div class="chip-value">${rows.length.toLocaleString()}</div>
+      <div class="chip-sub">total rows</div>
+    </div>
+    <div class="chip">
+      <div class="chip-label">Lowest price</div>
+      <div class="chip-value">${minPrice != null ? '$' + minPrice.toFixed(2) : '—'}</div>
+      <div class="chip-sub">across all</div>
+    </div>
+    <div class="chip">
+      <div class="chip-label">Highest price</div>
+      <div class="chip-value">${maxPrice != null ? '$' + maxPrice.toFixed(2) : '—'}</div>
+      <div class="chip-sub">across all</div>
+    </div>
+    <div class="chip">
+      <div class="chip-label">Date range</div>
+      <div class="chip-value" style="font-size:.95rem;">${dates[0] || '—'}</div>
+      <div class="chip-sub">→ ${dates[dates.length - 1] || '—'}</div>
+    </div>
+  `;
+}
+
+function renderPriceTable(rows) {
+  const stateEl  = document.getElementById('priceTableState');
+  const wrapEl   = document.getElementById('priceTableWrap');
+  const bodyEl   = document.getElementById('priceTableBody');
+  const countEl  = document.getElementById('priceRowCount');
+
+  if (!rows.length) {
+    wrapEl.style.display = 'none';
+    stateEl.style.display = 'flex';
+    stateEl.innerHTML = `
+      <div class="icon">🔍</div>
+      <div class="label">No pricing data found for the selected filters.</div>`;
+    countEl.textContent = '0 rows';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+  countEl.textContent   = rows.length + ' row' + (rows.length !== 1 ? 's' : '');
+
+  bodyEl.innerHTML = rows.map(r => {
+    const color  = competitorColor(r.competitor);
+    const price  = r.price_amount != null ? parseFloat(r.price_amount) : null;
+    const pClass = price == null ? '' : price > 30 ? 'high' : price > 15 ? 'mid' : '';
+    const pText  = price != null ? `${r.currency || '$'}&nbsp;${price.toFixed(2)}` : '—';
+    return `<tr>
+      <td>
+        <span class="competitor-dot" style="background:${color}"></span>
+        ${escHtml(r.competitor)}
+      </td>
+      <td>${escHtml(r.scrape_date || '')}</td>
+      <td>${escHtml(r.product_name || '—')}</td>
+      <td>${escHtml(r.tier_name   || '—')}</td>
+      <td><span class="price-badge ${pClass}">${pText}</span></td>
+      <td>${escHtml(r.bundle_info || '—')}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTrendChart(rows) {
+  const chartWrap  = document.getElementById('chartWrap');
+  const chartState = document.getElementById('chartState');
+  destroyChart();
+
+  // Group by competitor → { date → [prices] }
+  const byCompetitor = {};
+  for (const r of rows) {
+    if (r.price_amount == null) continue;
+    if (!byCompetitor[r.competitor]) byCompetitor[r.competitor] = {};
+    const d = r.scrape_date;
+    if (!byCompetitor[r.competitor][d]) byCompetitor[r.competitor][d] = [];
+    byCompetitor[r.competitor][d].push(parseFloat(r.price_amount));
+  }
+
+  const competitors = Object.keys(byCompetitor);
+  if (!competitors.length) {
+    chartWrap.style.display  = 'none';
+    chartState.style.display = 'flex';
+    return;
+  }
+
+  chartState.style.display = 'none';
+  chartWrap.style.display  = 'block';
+
+  // Collect all dates
+  const allDates = [...new Set(rows.map(r => r.scrape_date).filter(Boolean))].sort();
+
+  const datasets = competitors.map(comp => {
+    const color = competitorColor(comp);
+    const data = allDates.map(date => {
+      const prices = byCompetitor[comp][date];
+      if (!prices || !prices.length) return null;
+      return prices.reduce((a, b) => a + b, 0) / prices.length;
+    });
+    return {
+      label: comp,
+      data,
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: false,
+      tension: 0.35,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      spanGaps: true,
+    };
+  });
+
+  const ctx = document.getElementById('priceTrendChart').getContext('2d');
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: allDates, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 10 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: $${v != null ? v.toFixed(2) : '—'}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, maxRotation: 45 },
+        },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: {
+            font: { size: 11 },
+            callback: v => '$' + v.toFixed(2),
+          },
+          beginAtZero: false,
+        }
+      }
+    }
+  });
+}
+
+function renderComparisonMatrix(rows) {
+  const wrapEl  = document.getElementById('matrixWrap');
+  const stateEl = document.getElementById('matrixState');
+  const headEl  = document.getElementById('matrixHead');
+  const bodyEl  = document.getElementById('matrixBody');
+
+  if (!rows.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    return;
+  }
+
+  // Latest rows per competitor (latest scrape_date)
+  const latestByComp = {};
+  for (const r of rows) {
+    const prev = latestByComp[r.competitor];
+    if (!prev || r.scrape_date > prev.scrape_date) {
+      latestByComp[r.competitor] = r;
+    }
+  }
+
+  // Build matrix: product_name → competitor → min price
+  const products = [...new Set(rows.map(r => r.product_name).filter(Boolean))].sort();
+  const competitors = Object.keys(latestByComp).sort();
+
+  // For matrix: look at most recent scrape per competitor per product
+  const cell = {}; // cell[product][competitor] = price_amount
+  for (const r of rows) {
+    if (!r.product_name) continue;
+    if (!cell[r.product_name]) cell[r.product_name] = {};
+    const prev = cell[r.product_name][r.competitor];
+    if (!prev || r.scrape_date > (prev.date || '')) {
+      cell[r.product_name][r.competitor] = { price: r.price_amount, date: r.scrape_date };
+    }
+  }
+
+  if (!products.length || !competitors.length) {
+    wrapEl.style.display  = 'none';
+    stateEl.style.display = 'flex';
+    return;
+  }
+
+  stateEl.style.display = 'none';
+  wrapEl.style.display  = 'block';
+
+  headEl.innerHTML = `<tr>
+    <th>Product</th>
+    ${competitors.map(c => `<th><span class="competitor-dot" style="background:${competitorColor(c)}"></span>${escHtml(c)}</th>`).join('')}
+  </tr>`;
+
+  bodyEl.innerHTML = products.map(prod => {
+    const cells = competitors.map(comp => {
+      const entry = cell[prod] && cell[prod][comp];
+      if (!entry || entry.price == null) return '<td style="color:#94a3b8">—</td>';
+      const p = parseFloat(entry.price);
+      const cls = p > 30 ? 'high' : p > 15 ? 'mid' : '';
+      return `<td><span class="price-badge ${cls}">$${p.toFixed(2)}</span></td>`;
+    }).join('');
+    return `<tr><td style="font-weight:600;">${escHtml(prod)}</td>${cells}</tr>`;
+  }).join('');
+}
+
+// ── Product filter population ──────────────────
+function populateProductFilter(rows) {
+  const sel = document.getElementById('filterProduct');
+  const current = sel.value;
+  const products = [...new Set(rows.map(r => r.product_name).filter(Boolean))].sort();
+  // Keep "All" option then add products
+  sel.innerHTML = '<option value="">All products</option>' +
+    products.map(p => `<option value="${escAttr(p)}"${p === current ? ' selected' : ''}>${escHtml(p)}</option>`).join('');
+}
+
+function populateCompetitorFilter(competitors) {
+  const sel = document.getElementById('filterCompetitor');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All competitors</option>' +
+    competitors.map(c => `<option value="${escAttr(c.domain)}"${c.domain === current ? ' selected' : ''}>${escHtml(c.domain)}</option>`).join('');
+}
+
+// ── Load & render pipeline ─────────────────────
+async function loadAndRender() {
+  // Show loading state
+  document.getElementById('priceTableState').style.display = 'flex';
+  document.getElementById('priceTableState').innerHTML = `<div class="spinner"></div><div class="label">Loading…</div>`;
+  document.getElementById('priceTableWrap').style.display = 'none';
+
+  const params = {
+    competitor: document.getElementById('filterCompetitor').value || '',
+    startDate:  document.getElementById('filterDateFrom').value  || '',
+    endDate:    document.getElementById('filterDateTo').value    || '',
+  };
+
+  let rows = [];
+  try {
+    rows = await fetchJSON(buildPriceURL(params));
+    document.getElementById('lastUpdated').textContent =
+      'Loaded ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    document.getElementById('priceTableState').style.display = 'flex';
+    document.getElementById('priceTableState').innerHTML = `
+      <div class="icon">⚠️</div>
+      <div class="label">Failed to load data: ${escHtml(String(err))}</div>`;
+    console.error('Price load error:', err);
+    return;
+  }
+
+  // Filter by product client-side (after fetch)
+  const productFilter = document.getElementById('filterProduct').value;
+  let filteredRows = rows;
+  if (productFilter) {
+    filteredRows = rows.filter(r => r.product_name === productFilter);
+  }
+
+  populateProductFilter(rows);
+
+  renderSummary(filteredRows);
+  renderPriceTable(filteredRows);
+  renderTrendChart(filteredRows);
+  renderComparisonMatrix(filteredRows);
+}
+
+// ── Escape helpers ─────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+function escAttr(str) {
+  return String(str).replace(/"/g, '&quot;');
+}
+
+// ── Tab switching ──────────────────────────────
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabName);
+    b.setAttribute('aria-selected', b.dataset.tab === tabName ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + tabName);
+  });
+}
+
+// ── Init ───────────────────────────────────────
+async function init() {
+  // Default date range: last 30 days
+  document.getElementById('filterDateFrom').value = daysAgo(30);
+  document.getElementById('filterDateTo').value   = today();
+
+  // Load competitors for dropdown
+  try {
+    const competitors = await fetchJSON('/api/competitors');
+    populateCompetitorFilter(competitors);
+  } catch (e) {
+    console.warn('Could not load competitors:', e);
+  }
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+  });
+
+  // Filter controls
+  document.getElementById('applyFilters').addEventListener('click', loadAndRender);
+  document.getElementById('resetFilters').addEventListener('click', () => {
+    document.getElementById('filterCompetitor').value = '';
+    document.getElementById('filterDateFrom').value   = daysAgo(30);
+    document.getElementById('filterDateTo').value     = today();
+    document.getElementById('filterProduct').value    = '';
+    loadAndRender();
+  });
+
+  // Initial load
+  await loadAndRender();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
