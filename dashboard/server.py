@@ -1,16 +1,29 @@
 from __future__ import annotations
 
 import logging
+import os
+import secrets
 import sqlite3
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 
 from init_db import DEFAULT_DB_PATH, init_database
 
 DEFAULT_PORT = 3001
+
+_AUTH_SESSION_KEY = "authenticated"
+
+# Public routes that skip authentication
+_PUBLIC_ROUTES = {"/login", "/health"}
+
+
+def _get_password() -> str:
+    """Return the dashboard password from the environment, defaulting to 'changeme'."""
+    return os.environ.get("DASHBOARD_PASSWORD", "changeme")
 
 
 class DashboardStore:
@@ -241,8 +254,33 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
     store = DashboardStore(db_path)
 
     app = Flask(__name__)
+    app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
     _static_dir = Path(__file__).parent / "static"
+
+    @app.before_request
+    def require_auth() -> Any:
+        if request.path in _PUBLIC_ROUTES or request.path.startswith("/static"):
+            return None
+        if not session.get(_AUTH_SESSION_KEY):
+            return redirect(url_for("login"))
+        return None
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login() -> Any:
+        if request.method == "POST":
+            submitted = request.form.get("password", "")
+            if secrets.compare_digest(submitted, _get_password()):
+                session[_AUTH_SESSION_KEY] = True
+                next_url = request.args.get("next") or "/"
+                return redirect(next_url)
+            return render_template("login.html", error="Incorrect password. Please try again.")
+        return render_template("login.html", error=None)
+
+    @app.route("/logout")
+    def logout() -> Any:
+        session.pop(_AUTH_SESSION_KEY, None)
+        return redirect(url_for("login"))
 
     @app.route("/")
     def index() -> Any:

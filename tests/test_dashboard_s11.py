@@ -36,7 +36,9 @@ def db_path(tmp_path: Path) -> Path:
 def client(db_path: Path) -> FlaskClient:
     app = create_app(db_path)
     app.testing = True
-    return app.test_client()
+    c = app.test_client()
+    c.post("/login", data={"password": "changeme"})
+    return c
 
 
 @pytest.fixture
@@ -147,7 +149,9 @@ def rich_client(db_path: Path) -> FlaskClient:
 
     app = create_app(db_path)
     app.testing = True
-    return app.test_client()
+    c = app.test_client()
+    c.post("/login", data={"password": "changeme"})
+    return c
 
 
 # ─── HTML structure — Reviews tab ─────────────────────────────────────────────

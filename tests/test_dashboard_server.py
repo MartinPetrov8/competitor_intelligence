@@ -16,7 +16,10 @@ def client(tmp_path: Path) -> FlaskClient:
     init_database(db_path)
     app = create_app(db_path)
     app.testing = True
-    return app.test_client()
+    c = app.test_client()
+    # Authenticate with the default password so API tests work
+    c.post("/login", data={"password": "changeme"})
+    return c
 
 
 def _competitor_id(db_path: Path, domain: str) -> int:
