@@ -113,6 +113,56 @@ def _extract_aggregate_values(soup: BeautifulSoup) -> tuple[float | None, int | 
     return None, None
 
 
+def _extract_nextjs_data(soup: BeautifulSoup) -> tuple[float | None, int | None, dict[int, int]]:
+    """Extract trustScore, numberOfReviews and star distribution from __NEXT_DATA__ JSON."""
+    script = soup.find("script", id="__NEXT_DATA__")
+    if script is None:
+        return None, None, {}
+
+    raw = script.string or script.get_text(strip=True)
+    if not raw:
+        return None, None, {}
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, None, {}
+
+    overall_rating: float | None = None
+    review_count: int | None = None
+    distribution: dict[int, int] = {}
+
+    def _search(obj: object) -> None:
+        nonlocal overall_rating, review_count
+        if isinstance(obj, dict):
+            if "trustScore" in obj and overall_rating is None:
+                overall_rating = _to_float(obj["trustScore"])
+            if "numberOfReviews" in obj and review_count is None:
+                # numberOfReviews may be an int or a dict with 'total'
+                val = obj["numberOfReviews"]
+                if isinstance(val, dict):
+                    review_count = _to_int(val.get("total"))
+                else:
+                    review_count = _to_int(val)
+            # Look for star distribution: list of dicts with 'stars' and 'count'
+            for key in ("reviewsDistribution", "ratingDistribution", "distribution"):
+                if key in obj and isinstance(obj[key], list):
+                    for entry in obj[key]:
+                        if isinstance(entry, dict):
+                            star = _to_int(entry.get("stars", entry.get("star")))
+                            count = _to_int(entry.get("count"))
+                            if star is not None and count is not None and 1 <= star <= 5:
+                                distribution[star] = count
+            for v in obj.values():
+                _search(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                _search(item)
+
+    _search(data)
+    return overall_rating, review_count, distribution
+
+
 def _extract_distribution_from_json_blob(soup: BeautifulSoup) -> dict[int, int]:
     distribution: dict[int, int] = {}
 
@@ -141,9 +191,16 @@ def _extract_distribution_from_text(soup: BeautifulSoup) -> dict[int, int]:
 
 def extract_trustpilot_review_record(*, competitor_id: int, html: str, source_url: str, scrape_date: str, scraped_at: str) -> TrustpilotReviewRecord | None:
     soup = BeautifulSoup(html, "html.parser")
-    overall_rating, review_count = _extract_aggregate_values(soup)
 
-    distribution = _extract_distribution_from_json_blob(soup)
+    # Try Next.js __NEXT_DATA__ block first (Trustpilot's current format)
+    overall_rating, review_count, distribution = _extract_nextjs_data(soup)
+
+    # Fall back to LD+JSON schema.org extraction
+    if overall_rating is None and review_count is None:
+        overall_rating, review_count = _extract_aggregate_values(soup)
+
+    if not distribution:
+        distribution = _extract_distribution_from_json_blob(soup)
     if not distribution:
         distribution = _extract_distribution_from_text(soup)
 

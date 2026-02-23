@@ -19,6 +19,27 @@ REQUEST_TIMEOUT_SECONDS = 30
 PRICING_PATHS = ("", "/pricing", "/prices", "/onward-ticket", "/product")
 PRICE_PATTERN = re.compile(r"(?P<currency>[$€£]|USD\s*)(?P<amount>\d+(?:[\.,]\d{1,2})?)", re.IGNORECASE)
 
+# Indicators that a text node contains JavaScript or HTML markup rather than real price text
+_JS_NOISE_INDICATORS = (
+    "self.__next_f",
+    "<![CDATA[",
+    "gform.initializeOnLoaded",
+    "jQuery(document)",
+    "window.__NEXT",
+    "function(",
+)
+_MAX_RAW_TEXT_LENGTH = 500
+
+
+def _is_noise_text(text: str) -> bool:
+    """Return True if the text looks like JS/HTML noise rather than a real price description."""
+    if len(text) > _MAX_RAW_TEXT_LENGTH:
+        return True
+    for indicator in _JS_NOISE_INDICATORS:
+        if indicator in text:
+            return True
+    return False
+
 
 @dataclass(frozen=True)
 class PriceRecord:
@@ -85,6 +106,10 @@ def extract_price_records(*, competitor_id: int, html: str, source_url: str, scr
             if len(bundle_text) > 500:
                 bundle_text = bundle_text[:500]
             bundle_info = bundle_text
+
+        # Skip noise: JS code blocks or unreasonably long text snippets
+        if _is_noise_text(text):
+            continue
 
         currency = _canonical_currency(match.group("currency"))
         key = (product_name.lower(), amount, currency)

@@ -11,6 +11,7 @@ import requests
 from init_db import init_database
 from scrapers.reviews_trustpilot import (
     REQUEST_TIMEOUT_SECONDS,
+    _extract_nextjs_data,
     extract_trustpilot_review_record,
     scrape_reviews_trustpilot,
 )
@@ -125,6 +126,103 @@ class TrustpilotScraperTests(unittest.TestCase):
             self.assertEqual(row["stars_5"], 150)
             self.assertEqual(row["stars_1"], 10)
             self.assertIsNotNone(row["scraped_at"])
+
+
+    def test_extract_trustpilot_review_record_from_nextjs_next_data(self) -> None:
+        """Regression test: scraper must parse __NEXT_DATA__ JSON (Next.js format) used by Trustpilot.
+
+        Previously the scraper only looked at LD+JSON schema.org blocks and missed the
+        trustScore / numberOfReviews fields that Trustpilot stores in a __NEXT_DATA__ script tag.
+        """
+        next_data = {
+            "props": {
+                "pageProps": {
+                    "businessUnit": {
+                        "trustScore": 4.8,
+                        "numberOfReviews": {
+                            "total": 526,
+                        },
+                        "reviewsDistribution": [
+                            {"stars": 5, "count": 420},
+                            {"stars": 4, "count": 63},
+                            {"stars": 3, "count": 20},
+                            {"stars": 2, "count": 11},
+                            {"stars": 1, "count": 12},
+                        ],
+                    }
+                }
+            }
+        }
+        import json as _json
+
+        html = f"""
+        <html><head>
+          <script id="__NEXT_DATA__" type="application/json">
+            {_json.dumps(next_data)}
+          </script>
+        </head><body></body></html>
+        """
+
+        record = extract_trustpilot_review_record(
+            competitor_id=5,
+            html=html,
+            source_url="https://www.trustpilot.com/review/onwardticket.com",
+            scrape_date="2026-02-23",
+            scraped_at="2026-02-23T09:00:00+00:00",
+        )
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertAlmostEqual(record.overall_rating, 4.8)
+        self.assertEqual(record.review_count, 526)
+        self.assertEqual(record.stars_5, 420)
+        self.assertEqual(record.stars_4, 63)
+        self.assertEqual(record.stars_3, 20)
+        self.assertEqual(record.stars_2, 11)
+        self.assertEqual(record.stars_1, 12)
+
+    def test_extract_trustpilot_review_record_nextjs_data_with_flat_number_of_reviews(self) -> None:
+        """Regression test: numberOfReviews may be a plain integer rather than a dict."""
+        import json as _json
+
+        next_data = {
+            "props": {
+                "pageProps": {
+                    "businessUnit": {
+                        "trustScore": 3.9,
+                        "numberOfReviews": 102,
+                    }
+                }
+            }
+        }
+        html = f"""
+        <html><head>
+          <script id="__NEXT_DATA__" type="application/json">{_json.dumps(next_data)}</script>
+        </head><body></body></html>
+        """
+
+        record = extract_trustpilot_review_record(
+            competitor_id=2,
+            html=html,
+            source_url="https://www.trustpilot.com/review/bestonwardticket.com",
+            scrape_date="2026-02-23",
+            scraped_at="2026-02-23T09:00:00+00:00",
+        )
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertAlmostEqual(record.overall_rating, 3.9)
+        self.assertEqual(record.review_count, 102)
+
+    def test_extract_nextjs_data_returns_none_when_no_script(self) -> None:
+        """_extract_nextjs_data should gracefully return None values when tag is absent."""
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup("<html><body><p>$5</p></body></html>", "html.parser")
+        rating, count, dist = _extract_nextjs_data(soup)
+        self.assertIsNone(rating)
+        self.assertIsNone(count)
+        self.assertEqual(dist, {})
 
 
 if __name__ == "__main__":
