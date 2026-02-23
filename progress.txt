@@ -163,6 +163,7 @@ def test_pricing_scraper(test_db):
 - **Snapshot diffs:** Normalize HTML with stripped text nodes and timestamp tokenization before `difflib.unified_diff` to reduce noisy whitespace/timestamp-only diffs.
 - **A/B detection:** Scan homepage HTML plus `<script src>` and inline script content; match tools using a signature map and persist only positive detections with compact evidence snippets.
 - **Daily orchestration:** In `run_daily.py`, model each scraper as a named task with target DB tables; compute `rows_inserted` via before/after table counts to produce stable per-scraper summaries even when scraper APIs return only booleans.
+- **Dashboard API pattern:** Keep a `create_app(db_path)` Flask app factory for testability, and centralize SQL/filter logic in a store class so all `/api/*` endpoints share identical date+competitor filtering semantics.
 
 ### Definition of Done Checklist
 The developer must ensure:
@@ -246,4 +247,15 @@ The developer must ensure:
 - Added tests in `tests/test_run_daily.py` for failure-tolerant sequencing, log-file creation, and summary output format.
 - **Learnings:** When scraper contracts only return booleans, before/after table counts provide a stable cross-scraper metric for inserted-row summaries.
 - **SKILLS_APPLIED:** karpathy-coding (Python orchestration with fault-tolerant sequential execution, logging, and row-count metrics)
+---
+
+## 2026-02-23 00:24 UTC - S-9: Dashboard backend API
+- Implemented `dashboard/server.py` as a Flask server with `create_app(db_path)` factory and `python dashboard/server.py` entrypoint bound to port 3001.
+- Added REST JSON endpoints: `/api/prices`, `/api/products`, `/api/reviews`, `/api/diffs`, and `/api/ab-tests`, plus `/health`.
+- Implemented shared competitor/date filtering (`competitor`, `date`, `start_date`, `end_date`) across all API routes.
+- Added review-query compatibility logic that supports both schema variants (`total_reviews`/`rating_*` and migrated `review_count`/`stars_*`) without crashing.
+- Added graceful database error handling with structured logging and JSON error responses.
+- Added tests in `tests/test_dashboard_server.py` for empty DB behavior, endpoint payload correctness, and filtering behavior.
+- **Learnings:** Using a dedicated data-store layer for API queries keeps endpoint handlers thin and ensures filtering logic stays consistent across all data types.
+- **SKILLS_APPLIED:** karpathy-coding (Flask API design, shared query/filter abstractions, schema-compatible SQL, focused tests)
 ---

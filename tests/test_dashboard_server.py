@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+import pytest
+from flask.testing import FlaskClient
+
+from dashboard.server import create_app
+from init_db import init_database
+
+
+@pytest.fixture
+def client(tmp_path: Path) -> FlaskClient:
+    db_path = tmp_path / "dashboard.db"
+    init_database(db_path)
+    app = create_app(db_path)
+    app.testing = True
+    return app.test_client()
+
+
+def _competitor_id(db_path: Path, domain: str) -> int:
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT id FROM competitors WHERE domain = ?", (domain,)).fetchone()
+    assert row is not None
+    return int(row[0])
+
+
+def _insert_sample_rows(db_path: Path) -> None:
+    domain = "onwardticket.com"
+    cid = _competitor_id(db_path, domain)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO prices (
+                competitor_id, scrape_date, product_name, tier_name, currency,
+                price_amount, bundle_info, source_url, raw_text
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", "Onward Ticket", "Basic", "USD", 12.5, "None", "https://onwardticket.com", "$12.5"),
+        )
+        conn.execute(
+            """
+            INSERT INTO products (
+                competitor_id, scrape_date, product_name, product_type, description,
+                is_bundle, source_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", "Onward Ticket", "single", "Valid onward ticket", 0, "https://onwardticket.com"),
+        )
+        conn.execute(
+            """
+            INSERT INTO diffs (
+                competitor_id, diff_date, page_type, diff_text, additions_count, removals_count
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", "homepage", "+ New pricing section", 1, 0),
+        )
+        conn.execute(
+            """
+            INSERT INTO reviews_trustpilot (
+                competitor_id, scrape_date, overall_rating, total_reviews,
+                rating_1, rating_2, rating_3, rating_4, rating_5, source_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", 4.2, 120, 5, 4, 8, 30, 73, "https://trustpilot.com/review/onwardticket.com"),
+        )
+        conn.execute(
+            """
+            INSERT INTO reviews_google (
+                competitor_id, scrape_date, overall_rating, total_reviews, source_url
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", 4.1, 88, "https://google.com/maps/place/onwardticket"),
+        )
+        conn.execute(
+            """
+            INSERT INTO ab_tests (
+                competitor_id, scrape_date, page_url, tool_name, detected, evidence
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (cid, "2026-02-22", "https://onwardticket.com", "Optimizely", 1, "window.optimizely"),
+        )
+        conn.commit()
+
+
+def test_api_endpoints_handle_empty_database(client: FlaskClient) -> None:
+    prices = client.get("/api/prices")
+    products = client.get("/api/products")
+    reviews = client.get("/api/reviews")
+    diffs = client.get("/api/diffs")
+    ab_tests = client.get("/api/ab-tests")
+
+    assert prices.status_code == 200
+    assert prices.get_json() == []
+    assert products.status_code == 200
+    assert products.get_json() == []
+    assert reviews.status_code == 200
+    assert reviews.get_json() == {"trustpilot": [], "google": []}
+    assert diffs.status_code == 200
+    assert diffs.get_json() == []
+    assert ab_tests.status_code == 200
+    assert ab_tests.get_json() == []
+
+
+def test_api_endpoints_return_json_with_data(client: FlaskClient, tmp_path: Path) -> None:
+    db_path = tmp_path / "dashboard.db"
+    _insert_sample_rows(db_path)
+
+    prices = client.get("/api/prices")
+    assert prices.status_code == 200
+    price_payload = prices.get_json()
+    assert isinstance(price_payload, list)
+    assert price_payload[0]["competitor"] == "onwardticket.com"
+
+    products = client.get("/api/products")
+    assert products.status_code == 200
+    assert products.get_json()[0]["product_name"] == "Onward Ticket"
+
+    reviews = client.get("/api/reviews")
+    assert reviews.status_code == 200
+    review_payload = reviews.get_json()
+    assert review_payload["trustpilot"][0]["total_reviews"] == 120
+    assert review_payload["google"][0]["total_reviews"] == 88
+
+    diffs = client.get("/api/diffs")
+    assert diffs.status_code == 200
+    assert diffs.get_json()[0]["diff_text"] == "+ New pricing section"
+
+    ab_tests = client.get("/api/ab-tests")
+    assert ab_tests.status_code == 200
+    assert ab_tests.get_json()[0]["tool_name"] == "Optimizely"
+
+
+def test_filtering_by_competitor_and_date(client: FlaskClient, tmp_path: Path) -> None:
+    db_path = tmp_path / "dashboard.db"
+    _insert_sample_rows(db_path)
+    other_id = _competitor_id(db_path, "vizafly.com")
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO prices (
+                competitor_id, scrape_date, product_name, currency, price_amount
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (other_id, "2026-02-23", "VisaFly Ticket", "USD", 20.0),
+        )
+        conn.commit()
+
+    unfiltered = client.get("/api/prices").get_json()
+    assert isinstance(unfiltered, list)
+    assert len(unfiltered) == 2
+
+    filtered_domain = client.get("/api/prices?competitor=onwardticket.com").get_json()
+    assert isinstance(filtered_domain, list)
+    assert len(filtered_domain) == 1
+    assert filtered_domain[0]["competitor"] == "onwardticket.com"
+
+    filtered_date = client.get("/api/prices?date=2026-02-23").get_json()
+    assert isinstance(filtered_date, list)
+    assert len(filtered_date) == 1
+    assert filtered_date[0]["competitor"] == "vizafly.com"
