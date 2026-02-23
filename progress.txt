@@ -217,3 +217,12 @@ The developer must ensure:
 - **Learnings:** Trustpilot metric fields are most reliably exposed through `application/ld+json` aggregate data; star breakdown often appears in non-JSON script blobs requiring regex extraction.
 - **SKILLS_APPLIED:** web-scraping (Trustpilot extraction via JSON-LD + fallback script/text parsing)
 ---
+
+## 2026-02-23 00:02 UTC - S-6: Google Reviews scraper
+- Implemented `scrapers/reviews_google.py` with competitor iteration, Google search-page fetches, JSON-LD + itemprop + text fallback parsing, and SQLite persistence into `reviews_google`.
+- Added schema-safe migration for `review_count` while keeping compatibility with existing `total_reviews` column.
+- Added resilient behavior for missing Google listings/timeouts/HTTP errors: logs warning and continues scraping remaining competitors.
+- Added tests in `tests/test_reviews_google.py` for parser extraction and end-to-end DB persistence with partial failures.
+- **Learnings:** Google review metrics are inconsistent across pages, so layered extraction (JSON-LD first, then semantic HTML tags, then text regex fallback) improves robustness.
+- **SKILLS_APPLIED:** web-scraping (Google review extraction with structured + fallback parsers)
+---
