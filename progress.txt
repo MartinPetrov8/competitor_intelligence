@@ -162,6 +162,7 @@ def test_pricing_scraper(test_db):
 - **Scrape deduplication:** When scraping multiple paths for one competitor, deduplicate by stable semantic keys before DB insert.
 - **Snapshot diffs:** Normalize HTML with stripped text nodes and timestamp tokenization before `difflib.unified_diff` to reduce noisy whitespace/timestamp-only diffs.
 - **A/B detection:** Scan homepage HTML plus `<script src>` and inline script content; match tools using a signature map and persist only positive detections with compact evidence snippets.
+- **Daily orchestration:** In `run_daily.py`, model each scraper as a named task with target DB tables; compute `rows_inserted` via before/after table counts to produce stable per-scraper summaries even when scraper APIs return only booleans.
 
 ### Definition of Done Checklist
 The developer must ensure:
@@ -236,4 +237,12 @@ The developer must ensure:
 - Added tests in `tests/test_ab_tests_scraper.py` for multi-signature detection and end-to-end DB persistence with partial scrape failures.
 - **Learnings:** A/B framework presence is most reliably detected by searching full HTML plus script `src` attributes and inline script text, then storing short context evidence to aid dashboard debugging.
 - **SKILLS_APPLIED:** web-scraping (homepage script-signature detection and resilient persistence)
+---
+
+## 2026-02-23 00:13 UTC - S-8: Daily runner script
+- Implemented `run_daily.py` orchestrator that runs all scraper modules sequentially with failure isolation and guaranteed exit code 0.
+- Added daily log file wiring to `logs/daily_YYYY-MM-DD.log` plus console logging.
+- Added per-scraper summary reporting (`name,status,rows_inserted,duration_seconds`) and robust `rows_inserted` calculation via pre/post table row counts.
+- Added tests in `tests/test_run_daily.py` for failure-tolerant sequencing, log-file creation, and summary output format.
+- **Learnings:** When scraper contracts only return booleans, before/after table counts provide a stable cross-scraper metric for inserted-row summaries.
 ---
