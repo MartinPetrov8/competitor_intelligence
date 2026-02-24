@@ -41,7 +41,9 @@ def client(db_path: Path) -> FlaskClient:
 
 @pytest.fixture
 def populated_client(db_path: Path) -> FlaskClient:
-    """Client backed by a DB pre-populated with price rows for all 5 competitors."""
+    """Client backed by a DB pre-populated with price rows for all 5 competitors (prices_v2 schema)."""
+    import datetime
+
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         competitor_ids = {
@@ -49,32 +51,32 @@ def populated_client(db_path: Path) -> FlaskClient:
             for row in conn.execute("SELECT id, domain FROM competitors").fetchall()
         }
 
+    # (competitor_domain, scrape_date, main_price, currency)
     rows = [
-        # (competitor_domain, scrape_date, product_name, tier_name, currency, price_amount, bundle_info)
-        ("onwardticket.com",     "2026-02-20", "Onward Ticket",       "Basic",    "USD", 9.99,  "None"),
-        ("onwardticket.com",     "2026-02-21", "Onward Ticket",       "Basic",    "USD", 10.99, "None"),
-        ("onwardticket.com",     "2026-02-21", "Round Trip",          "Standard", "USD", 18.50, "None"),
-        ("bestonwardticket.com", "2026-02-20", "Best Onward Ticket",  "Basic",    "USD", 12.00, "None"),
-        ("bestonwardticket.com", "2026-02-21", "Best Onward Ticket",  "Basic",    "USD", 12.50, "None"),
-        ("dummyticket.com",      "2026-02-21", "Dummy Ticket",        "Basic",    "USD", 7.99,  "None"),
-        ("dummy-tickets.com",    "2026-02-21", "Dummy Tickets",       "Economy",  "USD", 8.49,  "None"),
-        ("vizafly.com",          "2026-02-21", "VisaFly Ticket",      "Standard", "USD", 14.99, "None"),
+        ("onwardticket.com",     "2026-02-20", 9.99,  "USD"),
+        ("onwardticket.com",     "2026-02-21", 10.99, "USD"),
+        ("bestonwardticket.com", "2026-02-20", 12.00, "USD"),
+        ("bestonwardticket.com", "2026-02-21", 12.50, "USD"),
+        ("dummyticket.com",      "2026-02-21", 7.99,  "USD"),
+        ("dummy-tickets.com",    "2026-02-21", 8.49,  "USD"),
+        ("vizafly.com",          "2026-02-21", 14.99, "USD"),
     ]
 
+    scraped_at = datetime.datetime.utcnow().isoformat()
+
     with sqlite3.connect(db_path) as conn:
-        for domain, date, product, tier, currency, price, bundle in rows:
+        for domain, date, price, currency in rows:
             cid = competitor_ids.get(domain)
             if cid is None:
                 continue
             conn.execute(
                 """
-                INSERT INTO prices (
-                    competitor_id, scrape_date, product_name, tier_name, currency,
-                    price_amount, bundle_info, source_url, raw_text
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO prices_v2 (
+                    competitor_id, scrape_date, scraped_at, main_price, currency,
+                    addons, source_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (cid, date, product, tier, currency, price, bundle,
-                 f"https://{domain}", f"${price}"),
+                (cid, date, scraped_at, price, currency, "[]", f"https://{domain}"),
             )
         conn.commit()
 
@@ -226,7 +228,7 @@ class TestCompetitorsEndpoint:
 class TestPricingApiCompatibility:
     """Ensure the pricing API returns fields the frontend JS relies on."""
 
-    REQUIRED_FIELDS = {"competitor", "scrape_date", "product_name", "price_amount", "currency"}
+    REQUIRED_FIELDS = {"competitor", "scrape_date", "main_price", "currency"}
 
     def test_empty_db_returns_empty_list(self, client: FlaskClient) -> None:
         data = client.get("/api/prices").get_json()
@@ -273,9 +275,9 @@ class TestPricingApiCompatibility:
     def test_price_amount_is_numeric_or_none(self, populated_client: FlaskClient) -> None:
         data = populated_client.get("/api/prices").get_json()
         for row in data:
-            pa = row.get("price_amount")
+            pa = row.get("main_price")
             assert pa is None or isinstance(pa, (int, float)), \
-                f"price_amount should be numeric, got {type(pa)}: {pa}"
+                f"main_price should be numeric, got {type(pa)}: {pa}"
 
     def test_multiple_dates_available_for_trend_chart(self, populated_client: FlaskClient) -> None:
         """Trend chart needs at least 2 distinct dates per competitor."""
