@@ -1,0 +1,27 @@
+# Business validation checks for competitor intelligence tracker
+# Format: check_type|param1|param2|...
+
+# Verify /health endpoint returns 200 OK
+http_ok|http://localhost:3001/health
+
+# Verify competitors table has at least 5 competitors
+db_rows|competitor_data.db|SELECT COUNT(*) FROM competitors|5
+
+# Verify core tables exist in database
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='competitors';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='prices_v2';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='products_v2';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='reviews_trustpilot';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='reviews_google';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='ab_tests';"
+cmd_exit0|sqlite3 competitor_data.db "SELECT name FROM sqlite_master WHERE type='table' AND name='snapshots';"
+
+# Verify critical files exist
+file_exists|dashboard/server.py
+file_exists|init_db.py
+file_exists|requirements.txt
+file_exists|database/schema.py
+
+# Verify test files exist
+file_exists|tests/test_dashboard_server.py
+file_nonempty|tests/test_dashboard_server.py

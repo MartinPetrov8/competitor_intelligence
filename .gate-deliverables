@@ -1,0 +1,10 @@
+# Required deliverables for /health endpoint enhancement
+
+# Modified files
+dashboard/server.py
+
+# Test files
+tests/test_dashboard_server.py
+
+# Documentation (if any architectural changes)
+# ARCHITECTURE.md (optional - only if endpoint behavior changes significantly)
