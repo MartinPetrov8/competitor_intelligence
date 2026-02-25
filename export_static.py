@@ -305,9 +305,6 @@ def render_html(data: dict) -> str:
     .diff-line-ctx {{ color: #94a3b8; }}
     .diff-no-changes {{ padding: .5rem 1rem; font-size: .82rem; color: #94a3b8; font-style: italic; }}
 
-    /* ── Products matrix ── */
-    .matrix-check {{ color: #15803d; font-size: 1.1rem; font-weight: 700; }}
-    .matrix-cross {{ color: #cbd5e1; font-size: 1rem; }}
 
     /* ── Source tabs ── */
     .source-tabs {{ display: flex; gap: .5rem; margin-bottom: 1rem; }}
