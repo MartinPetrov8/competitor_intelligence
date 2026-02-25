@@ -278,7 +278,7 @@
     <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
   </div>
   <div class="last-updated">
-    <div>Generated 2026-02-25 10:48 UTC</div>
+    <div>Generated 2026-02-25 16:22 UTC</div>
     <div class="static-badge">STATIC SNAPSHOT</div>
   </div>
 </header>
@@ -384,83 +384,19 @@ function buildLineDatasets(rows, dateKey, valueKey, filterFn) {
 function renderPricing() {
   const el = document.getElementById('tab-pricing');
 
-  // Summary chips
-  const allPrices = DATA.prices.map(r => r.price_amount).filter(p => p != null);
-  const v2Prices  = DATA.prices_v2.map(r => r.main_price).filter(p => p != null);
-  const allP = [...allPrices, ...v2Prices];
-  const latestDates = [...new Set([...DATA.prices, ...DATA.prices_v2].map(r => r.scrape_date).filter(Boolean))].sort();
+  const v2Prices = DATA.prices_v2.map(r => r.main_price).filter(p => p != null);
+  const latestDates = [...new Set(DATA.prices_v2.map(r => r.scrape_date).filter(Boolean))].sort();
   const latestDate = latestDates[latestDates.length - 1] || '—';
 
   const chips = `
     <div class="summary-bar">
       <div class="chip"><div class="chip-label">Competitors</div><div class="chip-value">${DATA.competitors.length}</div><div class="chip-sub">tracked</div></div>
-      <div class="chip"><div class="chip-label">Price records</div><div class="chip-value">${DATA.prices.length + DATA.prices_v2.length}</div><div class="chip-sub">total</div></div>
-      <div class="chip"><div class="chip-label">Lowest price</div><div class="chip-value">${allP.length ? '$' + Math.min(...allP).toFixed(2) : '—'}</div><div class="chip-sub">across all</div></div>
-      <div class="chip"><div class="chip-label">Highest price</div><div class="chip-value">${allP.length ? '$' + Math.max(...allP).toFixed(2) : '—'}</div><div class="chip-sub">across all</div></div>
+      <div class="chip"><div class="chip-label">Lowest price</div><div class="chip-value">${v2Prices.length ? '$' + Math.min(...v2Prices).toFixed(2) : '—'}</div><div class="chip-sub">across all</div></div>
+      <div class="chip"><div class="chip-label">Highest price</div><div class="chip-value">${v2Prices.length ? '$' + Math.max(...v2Prices).toFixed(2) : '—'}</div><div class="chip-sub">across all</div></div>
       <div class="chip"><div class="chip-label">Latest data</div><div class="chip-value" style="font-size:.95rem;">${esc(latestDate)}</div><div class="chip-sub">most recent scrape</div></div>
     </div>`;
 
-  // Latest prices table (prices_v2 = structured, more accurate)
-  const latestV2 = DATA.prices_v2.filter(r => r.scrape_date === latestDate);
-  const v2Rows = latestV2.map(r => {
-    const addons = (r.addons || []).map(a => `<span class="addon-tag">${esc(a.name)}: ${a.price != null ? '$'+parseFloat(a.price).toFixed(2) : '?'}</span>`).join('');
-    return `<tr>
-      <td>${dot(r.competitor)}${esc(r.competitor)}</td>
-      <td>${esc(r.scrape_date)}</td>
-      <td>${priceBadge(r.main_price, r.currency)}</td>
-      <td>${addons || '<span style="color:#94a3b8">—</span>'}</td>
-    </tr>`;
-  }).join('');
-
-  const v2Table = latestV2.length ? `
-    <div class="card">
-      <div class="card-header">💰 Latest Main Prices <span class="badge badge-gray" style="margin-left:auto;">${latestDate}</span></div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Competitor</th><th>Date</th><th>Price</th><th>Add-ons</th></tr></thead>
-            <tbody>${v2Rows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>` : '';
-
-  // Detailed prices table (prices = all scraped entries)
-  const detailRows = DATA.prices.slice(0, 200).map(r => `<tr>
-    <td>${dot(r.competitor)}${esc(r.competitor)}</td>
-    <td>${esc(r.scrape_date)}</td>
-    <td>${esc(r.product_name || '—')}</td>
-    <td>${esc(r.tier_name || '—')}</td>
-    <td>${priceBadge(r.price_amount, r.currency)}</td>
-    <td>${esc(r.bundle_info || '—')}</td>
-  </tr>`).join('');
-
-  const detailTable = DATA.prices.length ? `
-    <div class="card">
-      <div class="card-header">📋 All Price Records <span class="badge badge-gray" style="margin-left:auto;">${DATA.prices.length} rows</span></div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Competitor</th><th>Date</th><th>Product</th><th>Tier</th><th>Price</th><th>Bundle</th></tr></thead>
-            <tbody>${detailRows}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>` : '';
-
-  // Price trend chart (prices_v2 main_price over time)
-  const { dates: trendDates, datasets: trendDS } = buildLineDatasets(
-    DATA.prices_v2, 'scrape_date', 'main_price', r => r.main_price != null
-  );
-  const trendChart = trendDates.length ? `
-    <div class="card">
-      <div class="card-header">📈 Main Price Trend</div>
-      <div class="card-body">
-        <div class="chart-container"><canvas id="chartPriceTrend"></canvas></div>
-      </div>
-    </div>` : '';
-
-  // Competitor × price comparison matrix (prices_v2)
+  // Current prices: latest record per competitor
   const compDomains = DATA.competitors.map(c => c.domain);
   const latestByComp = {};
   for (const r of DATA.prices_v2) {
@@ -474,24 +410,36 @@ function renderPricing() {
       <td>${dot(d)}${esc(d)}</td>
       <td>${r ? priceBadge(r.main_price, r.currency) : '<span style="color:#94a3b8">No data</span>'}</td>
       <td>${r ? esc(r.scrape_date) : '—'}</td>
-      <td>${r ? (r.addons || []).map(a => `<span class="addon-tag">${esc(a.name)}: ${a.price != null ? '$'+parseFloat(a.price).toFixed(2) : '?'}</span>`).join('') || '—' : '—'}</td>
+      <td>${r ? (r.addons || []).map(a => `<span class="addon-tag">${esc(a.name)}: ${a.price != null ? '$'+parseFloat(a.price).toFixed(2) : '?'}</span>`).join('') || '<span style="color:#94a3b8">—</span>' : '—'}</td>
     </tr>`;
   }).join('');
 
   const matrix = `
     <div class="card">
-      <div class="card-header">🗂️ Current Price Comparison</div>
+      <div class="card-header">💰 Current Prices <span class="badge badge-gray" style="margin-left:auto;">${esc(latestDate)}</span></div>
       <div class="card-body">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Competitor</th><th>Main Price</th><th>Last Scraped</th><th>Add-ons</th></tr></thead>
+            <thead><tr><th>Competitor</th><th>Price</th><th>Last Scraped</th><th>Add-ons</th></tr></thead>
             <tbody>${matrixRows}</tbody>
           </table>
         </div>
       </div>
     </div>`;
 
-  el.innerHTML = chips + v2Table + matrix + trendChart + detailTable;
+  // Price trend chart
+  const { dates: trendDates, datasets: trendDS } = buildLineDatasets(
+    DATA.prices_v2, 'scrape_date', 'main_price', r => r.main_price != null
+  );
+  const trendChart = trendDates.length ? `
+    <div class="card">
+      <div class="card-header">📈 Price Trend</div>
+      <div class="card-body">
+        <div class="chart-container"><canvas id="chartPriceTrend"></canvas></div>
+      </div>
+    </div>` : '';
+
+  el.innerHTML = chips + matrix + trendChart;
 
   if (trendDates.length) {
     mkChart('chartPriceTrend', trendDates, trendDS, v => '$' + v.toFixed(2));
