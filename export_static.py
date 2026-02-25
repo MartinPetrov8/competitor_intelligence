@@ -35,14 +35,6 @@ def load_data(db_path: Path) -> dict:
 
     competitors = q("SELECT id, domain, base_url FROM competitors ORDER BY domain")
 
-    prices = q("""
-        SELECT c.domain AS competitor, p.scrape_date, p.product_name,
-               p.tier_name, p.price_amount, p.currency, p.bundle_info
-        FROM prices p
-        JOIN competitors c ON c.id = p.competitor_id
-        ORDER BY p.scrape_date DESC, c.domain
-    """)
-
     prices_v2 = q("""
         SELECT c.domain AS competitor, p.scrape_date, p.main_price,
                p.currency, p.addons, p.source_url
@@ -56,25 +48,6 @@ def load_data(db_path: Path) -> dict:
             row["addons"] = json.loads(row["addons"]) if row["addons"] else []
         except Exception:
             row["addons"] = []
-
-    products = q("""
-        SELECT c.domain AS competitor, p.scrape_date, p.product_name,
-               p.product_type, p.description, p.is_bundle, p.price_range
-        FROM products p
-        JOIN competitors c ON c.id = p.competitor_id
-        ORDER BY p.scrape_date DESC, c.domain
-    """)
-
-    products_v2 = q("""
-        SELECT c.domain AS competitor, p.scrape_date,
-               p.one_way_offered, p.one_way_price,
-               p.round_trip_offered, p.round_trip_price,
-               p.hotel_offered, p.hotel_price,
-               p.visa_letter_offered, p.visa_letter_price
-        FROM products_v2 p
-        JOIN competitors c ON c.id = p.competitor_id
-        ORDER BY p.scrape_date DESC, c.domain
-    """)
 
     reviews_tp = q("""
         SELECT c.domain AS competitor, r.scrape_date, r.overall_rating,
@@ -112,10 +85,7 @@ def load_data(db_path: Path) -> dict:
     conn.close()
     return {
         "competitors": competitors,
-        "prices": prices,
         "prices_v2": prices_v2,
-        "products": products,
-        "products_v2": products_v2,
         "reviews_trustpilot": reviews_tp,
         "reviews_google": reviews_g,
         "diffs": diffs,
@@ -522,7 +492,7 @@ function renderPricing() {{
       <div class="chip"><div class="chip-label">Competitors</div><div class="chip-value">${{DATA.competitors.length}}</div><div class="chip-sub">tracked</div></div>
       <div class="chip"><div class="chip-label">Lowest price</div><div class="chip-value">${{v2Prices.length ? '$' + Math.min(...v2Prices).toFixed(2) : '—'}}</div><div class="chip-sub">across all</div></div>
       <div class="chip"><div class="chip-label">Highest price</div><div class="chip-value">${{v2Prices.length ? '$' + Math.max(...v2Prices).toFixed(2) : '—'}}</div><div class="chip-sub">across all</div></div>
-      <div class="chip"><div class="chip-label">Latest data</div><div class="chip-value" style="font-size:.95rem;">${{esc(latestDate)}}</div><div class="chip-sub">most recent scrape</div></div>
+      <div class="chip"><div class="chip-label">Last updated</div><div class="chip-value" style="font-size:.95rem;">${{esc(latestDate)}}</div><div class="chip-sub">most recent scrape</div></div>
     </div>`;
 
   // Current prices: latest record per competitor
@@ -573,80 +543,6 @@ function renderPricing() {{
   if (trendDates.length) {{
     mkChart('chartPriceTrend', trendDates, trendDS, v => '$' + v.toFixed(2));
   }}
-}}
-
-// ══════════════════════════════════════════════════════════════════════════
-// PRODUCTS TAB
-// ══════════════════════════════════════════════════════════════════════════
-function renderProducts() {{
-  const el = document.getElementById('tab-products');
-
-  // Products v2: structured one_way / round_trip / hotel / visa_letter
-  const latestDates = [...new Set(DATA.products_v2.map(r => r.scrape_date))].sort();
-  const latestDate  = latestDates[latestDates.length - 1] || null;
-  const latestV2    = DATA.products_v2.filter(r => r.scrape_date === latestDate);
-
-  const compDomains = DATA.competitors.map(c => c.domain);
-  const byComp = {{}};
-  for (const r of latestV2) byComp[r.competitor] = r;
-
-  const PRODUCT_COLS = [
-    ['one_way',    'one_way_price',    '✈️ One Way'],
-    ['round_trip', 'round_trip_price', '🔄 Round Trip'],
-    ['hotel',      'hotel_price',      '🏨 Hotel'],
-    ['visa_letter','visa_letter_price','📄 Visa Letter'],
-  ];
-
-  const matrixHead = `<tr><th>Competitor</th>${{PRODUCT_COLS.map(([,,label]) => `<th>${{label}}</th>`).join('')}}</tr>`;
-  const matrixBody = compDomains.map(d => {{
-    const r = byComp[d];
-    const cells = PRODUCT_COLS.map(([offeredKey, priceKey]) => {{
-      if (!r) return `<td><span class="matrix-cross">✗</span></td>`;
-      const offered = r[offeredKey + '_offered'];
-      const price   = r[priceKey];
-      if (!offered) return `<td><span class="matrix-cross">✗</span></td>`;
-      return `<td><span class="matrix-check">✓</span> ${{price != null ? priceBadge(price, 'USD') : ''}}</td>`;
-    }}).join('');
-    return `<tr><td>${{dot(d)}}${{esc(d)}}</td>${{cells}}</tr>`;
-  }}).join('');
-
-  const v2Section = latestV2.length ? `
-    <div class="card">
-      <div class="card-header">📦 Product Matrix <span class="badge badge-gray" style="margin-left:auto;">${{esc(latestDate || '—')}}</span></div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table>
-            <thead>${{matrixHead}}</thead>
-            <tbody>${{matrixBody}}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>` : '';
-
-  // Products catalog (products table)
-  const prodRows = DATA.products.slice(0, 200).map(r => `<tr>
-    <td>${{dot(r.competitor)}}${{esc(r.competitor)}}</td>
-    <td>${{esc(r.scrape_date)}}</td>
-    <td style="font-weight:600;">${{esc(r.product_name || '—')}}</td>
-    <td><span class="badge badge-blue">${{esc(r.product_type || '—')}}</span></td>
-    <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${{esc(r.description || '')}}">${{esc(r.description || '—')}}</td>
-    <td>${{r.is_bundle ? '<span class="badge badge-green">Bundle</span>' : '<span class="badge badge-gray">Single</span>'}}</td>
-  </tr>`).join('');
-
-  const catalog = DATA.products.length ? `
-    <div class="card">
-      <div class="card-header">📋 Full Product Catalog <span class="badge badge-gray" style="margin-left:auto;">${{DATA.products.length}} records</span></div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Competitor</th><th>Date</th><th>Product</th><th>Type</th><th>Description</th><th>Bundle</th></tr></thead>
-            <tbody>${{prodRows}}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>` : '';
-
-  el.innerHTML = (v2Section || '<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">🔍</div><div class="label">No structured product data yet</div></div></div></div>') + catalog;
 }}
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -880,8 +776,7 @@ def main() -> None:
 
     total_rows = sum(len(v) for v in data.values() if isinstance(v, list))
     print(f"   competitors: {len(data['competitors'])}")
-    print(f"   prices:      {len(data['prices'])} + {len(data['prices_v2'])} v2")
-    print(f"   products:    {len(data['products'])} + {len(data['products_v2'])} v2")
+    print(f"   prices:      {len(data['prices_v2'])} v2")
     print(f"   reviews:     {len(data['reviews_trustpilot'])} TP / {len(data['reviews_google'])} Google")
     print(f"   diffs:       {len(data['diffs'])}")
     print(f"   ab_tests:    {len(data['ab_tests'])}")
