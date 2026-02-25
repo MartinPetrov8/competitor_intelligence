@@ -197,6 +197,24 @@ class DashboardStore:
         with self._connect() as conn:
             return [dict(row) for row in conn.execute(query).fetchall()]
 
+    def get_scraper_count(self) -> int:
+        """Return the count of scrapers from the competitors table.
+        
+        Returns:
+            Integer count of competitors/scrapers in the database.
+            
+        Raises:
+            sqlite3.Error: If database query fails.
+        """
+        query = "SELECT COUNT(*) as count FROM competitors"
+        try:
+            with self._connect() as conn:
+                row = conn.execute(query).fetchone()
+                return int(row["count"])
+        except sqlite3.Error:
+            logging.exception("Failed to get scraper count")
+            raise
+
     def fetch_reviews(
         self, competitor: str | None, date_value: str | None, start_date: str | None, end_date: str | None
     ) -> dict[str, list[dict[str, Any]]]:
