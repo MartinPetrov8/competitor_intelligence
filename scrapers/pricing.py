@@ -31,9 +31,14 @@ _USER_AGENTS = [
 ]
 _UA_CYCLE = itertools.cycle(_USER_AGENTS)
 
-# Price: $16, €14, £10 or leading-USD with amount
+# Price: $16, €14, £10 — symbol-first format
 PRICE_PATTERN = re.compile(
     r"(?:USD\s*)?(?P<currency>[$€£])(?P<amount>\d+(?:[.,]\d{1,2})?)"
+)
+
+# Price: "15 USD", "19 USD" — amount-first format (dummyticket.com style)
+PRICE_PATTERN_WORD = re.compile(
+    r"(?P<amount>\d+(?:[.,]\d{1,2})?)\s*(?P<currency>USD|EUR|GBP)"
 )
 
 # Addon label patterns: "Round Trip (+$7)", "7 days (+$7)", "(+$1.00 ...)"
@@ -169,6 +174,47 @@ def _extract_from_next_data(html: str) -> tuple[float | None, list[AddonItem], s
 
 
 # ---------------------------------------------------------------------------
+# Next.js App Router JS-bundle extraction (vizafly.com style)
+# ---------------------------------------------------------------------------
+
+
+def _extract_from_nextjs_bundle(
+    session: requests.Session, base_url: str, html: str
+) -> tuple[float | None, list[AddonItem], str]:
+    """
+    For Next.js App Router sites that render pricing in JS bundles (not __NEXT_DATA__).
+    Scans the page JS chunk for the app page bundle and extracts price strings like
+    'From $12' or '$12'.
+    Returns (main_price, addons, currency).
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    scripts = [s.get("src") for s in soup.find_all("script", src=True) if s.get("src")]
+
+    # Only check the app/page bundle — usually named app/page-*.js
+    page_chunks = [s for s in scripts if s and "app/page" in s]
+
+    for chunk_path in page_chunks:
+        chunk_url = chunk_path if chunk_path.startswith("http") else base_url.rstrip("/") + chunk_path
+        try:
+            resp = session.get(chunk_url, timeout=REQUEST_TIMEOUT_SECONDS)
+            resp.raise_for_status()
+            js_text = resp.text
+        except requests.RequestException:
+            continue
+
+        # Look for patterns like "From $12", "$12", "$9.99" in JS string literals
+        # Exclude React internal refs like "$1", "$L1" etc. (single digit or letter-prefixed)
+        for m in re.finditer(r'[Ff]rom\s+\$(\d{2,}(?:\.\d{1,2})?)|"\$(\d{2,}(?:\.\d{1,2})?)"', js_text):
+            raw = m.group(1) or m.group(2)
+            amount = _safe_float(raw)
+            if amount is not None and amount > 0:
+                logging.info("Extracted price from JS bundle %s: $%.2f", chunk_url, amount)
+                return amount, [], "USD"
+
+    return None, [], "USD"
+
+
+# ---------------------------------------------------------------------------
 # Regular HTML extraction
 # ---------------------------------------------------------------------------
 
@@ -182,6 +228,26 @@ def _extract_addons_from_text(text: str) -> list[AddonItem]:
         if name and price is not None and price > 0:
             addons.append(AddonItem(name=name, price=price))
     return addons
+
+
+def _extract_price_from_text(text: str) -> tuple[float | None, str]:
+    """
+    Try to extract a price from a text node using both symbol-first ($16)
+    and word-style (15 USD) patterns. Returns (amount, currency) or (None, "USD").
+    """
+    # Symbol-first: $16, €14
+    m = PRICE_PATTERN.search(text)
+    if m:
+        amount = _safe_float(m.group("amount"))
+        if amount is not None:
+            return amount, _canonical_currency(m.group("currency"))
+    # Word-style: "15 USD", "19 USD"
+    m2 = PRICE_PATTERN_WORD.search(text)
+    if m2:
+        amount = _safe_float(m2.group("amount"))
+        if amount is not None:
+            return amount, _canonical_currency(m2.group("currency"))
+    return None, "USD"
 
 
 def extract_pricing_v2(
@@ -198,11 +264,14 @@ def extract_pricing_v2(
     Returns None if no usable price is found.
     """
     soup = BeautifulSoup(html, "html.parser")
-    page_text = soup.get_text(" ", strip=True)
 
-    # Collect all price-containing text nodes, filtered for noise
+    # Collect all price-containing text nodes (both symbol and word formats), filtered for noise
+    # Use a simple combined pattern without named groups to avoid group name conflicts
+    combined_pattern = re.compile(
+        r"[$€£]\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s*(?:USD|EUR|GBP)"
+    )
     price_texts: list[str] = []
-    for node in soup.find_all(string=PRICE_PATTERN):
+    for node in soup.find_all(string=combined_pattern):
         raw = " ".join(node.split())
         if _is_noise_text(raw):
             continue
@@ -211,28 +280,20 @@ def extract_pricing_v2(
     if not price_texts:
         return None
 
-    # Determine main price: use the first (topmost) clean price text that has
-    # the smallest dollar amount — typical of "from $X" hero copy.
+    # Determine main price: smallest clean non-addon price found
     best_price: float | None = None
     best_currency = "USD"
-    best_text = ""
 
     for text in price_texts:
         # Skip addon-only price text like "(+$7)" or "Round Trip (+$7)"
-        # — these are deltas, not main prices
         if _ADDON_ONLY_PATTERN.search(text) or "(+" in text:
             continue
-        m = PRICE_PATTERN.search(text)
-        if m is None:
-            continue
-        amount = _safe_float(m.group("amount"))
+        amount, currency = _extract_price_from_text(text)
         if amount is None:
             continue
-        currency = _canonical_currency(m.group("currency"))
         if best_price is None or amount < best_price:
             best_price = amount
             best_currency = currency
-            best_text = text
 
     if best_price is None:
         return None
@@ -361,10 +422,30 @@ def scrape_pricing(db_path: Path = DEFAULT_DB_PATH) -> bool:
                     if html is None:
                         continue
 
-                    # Next.js sites: parse __NEXT_DATA__
+                    # Next.js sites: try __NEXT_DATA__ first, then JS bundle
                     soup_check = BeautifulSoup(html, "html.parser")
-                    if soup_check.find("script", id="__NEXT_DATA__"):
+                    is_nextjs_pages = bool(soup_check.find("script", id="__NEXT_DATA__"))
+                    is_nextjs_app_router = "self.__next_f" in html  # App Router (RSC)
+
+                    if is_nextjs_pages:
                         main_price, addons, currency = _extract_from_next_data(html)
+                        if main_price is not None:
+                            best_record = PriceV2Record(
+                                competitor_id=competitor_id,
+                                scrape_date=scrape_date,
+                                scraped_at=scraped_at,
+                                main_price=main_price,
+                                currency=currency,
+                                addons=addons,
+                                source_url=page_url,
+                            )
+                            break
+
+                    if is_nextjs_pages or is_nextjs_app_router:
+                        # __NEXT_DATA__ had no price, or App Router site — try JS bundle
+                        # Use actual fetched URL (after redirects) as base for bundle URLs
+                        actual_base = base_url  # will follow redirects in _fetch via requests
+                        main_price, addons, currency = _extract_from_nextjs_bundle(session, actual_base, html)
                         if main_price is not None:
                             best_record = PriceV2Record(
                                 competitor_id=competitor_id,
