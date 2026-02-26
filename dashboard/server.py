@@ -215,6 +215,44 @@ class DashboardStore:
             logging.exception("Failed to get scraper count")
             raise
 
+    def get_last_run_timestamp(self) -> str | None:
+        """Return the maximum scraped_at timestamp across all scraping tables.
+        
+        Queries scraped_at columns from prices_v2, products_v2, reviews_trustpilot,
+        reviews_google, ab_tests, and snapshots tables and returns the most recent
+        timestamp.
+        
+        Returns:
+            ISO 8601 timestamp string of the most recent scrape, or None if no
+            timestamps exist in any table.
+            
+        Raises:
+            sqlite3.Error: If database query fails.
+        """
+        query = """
+            SELECT MAX(scraped_at) as last_run FROM (
+                SELECT MAX(scraped_at) as scraped_at FROM prices_v2
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM products_v2
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM reviews_trustpilot
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM reviews_google
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM ab_tests
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM snapshots
+            )
+        """
+        try:
+            with self._connect() as conn:
+                row = conn.execute(query).fetchone()
+                result = row["last_run"]
+                return str(result) if result is not None else None
+        except sqlite3.Error:
+            logging.exception("Failed to get last run timestamp")
+            raise
+
     def fetch_reviews(
         self, competitor: str | None, date_value: str | None, start_date: str | None, end_date: str | None
     ) -> dict[str, list[dict[str, Any]]]:
