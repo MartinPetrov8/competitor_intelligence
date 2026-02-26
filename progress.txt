@@ -431,3 +431,16 @@ The developer must ensure:
 - **Learnings:** `_ADDON_ONLY_PATTERN` check + `"(+" in text` guard prevents addon deltas from being mistaken as main price. MIN price strategy works well for "from $X" hero copy patterns.
 - **SKILLS_APPLIED:** karpathy-coding | web-scraping
 ---
+
+
+## 2026-02-25 23:29 UTC - US-001: Verify existing database schema supports health endpoint
+- Created comprehensive test suite in tests/test_health_endpoint_schema.py (11 tests)
+- Verified competitors table exists and is queryable via COUNT(*)
+- Confirmed competitors table has required columns: id, domain, base_url
+- Verified scraped_at column exists in all 6 scraping tables: prices_v2, products_v2, reviews_trustpilot, reviews_google, ab_tests, snapshots
+- Confirmed MAX(scraped_at) can be queried from all tables for health endpoint last_run timestamp
+- All 11 schema verification tests pass
+- Mypy typecheck clean
+- **Learnings:** Database schema already supports health endpoint without modifications. The init_database() function expects Path object, not string. All required tables and columns are present.
+- **SKILLS_APPLIED:** karpathy-coding
+---

@@ -52,27 +52,32 @@ def rich_client(db_path: Path) -> FlaskClient:
         }
 
     with sqlite3.connect(db_path) as conn:
-        # ── Products ──────────────────────────────────────────────────────────
-        products_data = [
-            ("onwardticket.com",     "2026-02-20", "Onward Ticket", "single",    "Single trip ticket",  0),
-            ("onwardticket.com",     "2026-02-21", "Round Trip",    "roundtrip", "Two-way ticket",      0),
-            ("bestonwardticket.com", "2026-02-20", "Onward Ticket", "single",    "Best single ticket",  0),
-            ("dummyticket.com",      "2026-02-21", "Hotel Bundle",  "bundle",    "Ticket + hotel",      1),
-            ("dummy-tickets.com",    "2026-02-21", "Onward Ticket", "single",    "Dummy single",        0),
-            ("vizafly.com",          "2026-02-21", "Round Trip",    "roundtrip", "VisaFly round trip",  0),
+        # ── Products V2 ───────────────────────────────────────────────────────
+        # Format: (domain, date, one_way, one_way_price, round_trip, round_trip_price, hotel, hotel_price, visa, visa_price)
+        products_v2_data = [
+            ("onwardticket.com",     "2026-02-20", 1, 12.99, 0, None,  0, None,  0, None),
+            ("onwardticket.com",     "2026-02-21", 1, 12.99, 1, 24.99, 0, None,  0, None),
+            ("bestonwardticket.com", "2026-02-20", 1, 11.99, 0, None,  0, None,  0, None),
+            ("dummyticket.com",      "2026-02-21", 1, 15.99, 1, 29.99, 1, 49.99, 0, None),
+            ("dummy-tickets.com",    "2026-02-21", 1, 13.99, 0, None,  0, None,  0, None),
+            ("vizafly.com",          "2026-02-21", 1, 14.99, 1, 28.99, 0, None,  1, 39.99),
         ]
-        for domain, date, name, ptype, desc, is_bundle in products_data:
+        for domain, date, ow, ow_p, rt, rt_p, hotel, hotel_p, visa, visa_p in products_v2_data:
             cid = competitor_ids.get(domain)
             if cid is None:
                 continue
             conn.execute(
                 """
-                INSERT INTO products (
-                    competitor_id, scrape_date, product_name, product_type,
-                    description, is_bundle, source_url
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO products_v2 (
+                    competitor_id, scrape_date, scraped_at,
+                    one_way_offered, one_way_price,
+                    round_trip_offered, round_trip_price,
+                    hotel_offered, hotel_price,
+                    visa_letter_offered, visa_letter_price,
+                    source_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (cid, date, name, ptype, desc, is_bundle, f"https://{domain}"),
+                (cid, date, f"{date}T12:00:00Z", ow, ow_p, rt, rt_p, hotel, hotel_p, visa, visa_p, f"https://{domain}"),
             )
 
         # ── Trustpilot reviews ────────────────────────────────────────────────
@@ -361,7 +366,14 @@ class TestReviewsApiS11:
 
 
 class TestProductsApiS11:
-    REQUIRED_FIELDS = {"competitor", "scrape_date", "product_name", "product_type", "is_bundle"}
+    # Products V2 API fields
+    REQUIRED_FIELDS = {
+        "competitor", "scrape_date", "scraped_at",
+        "one_way_offered", "one_way_price",
+        "round_trip_offered", "round_trip_price",
+        "hotel_offered", "hotel_price",
+        "visa_letter_offered", "visa_letter_price"
+    }
 
     def test_empty_db_returns_empty_list(self, client: FlaskClient) -> None:
         data = client.get("/api/products").get_json()
@@ -383,10 +395,10 @@ class TestProductsApiS11:
         for row in data:
             assert row["scrape_date"] == "2026-02-21"
 
-    def test_bundle_flag_returned(self, rich_client: FlaskClient) -> None:
+    def test_hotel_offered_flag_returned(self, rich_client: FlaskClient) -> None:
         data = rich_client.get("/api/products").get_json()
-        bundles = [r for r in data if r["is_bundle"]]
-        assert len(bundles) >= 1, "Expected at least one bundle product"
+        hotel_offered = [r for r in data if r["hotel_offered"]]
+        assert len(hotel_offered) >= 1, "Expected at least one competitor offering hotel"
 
     def test_multiple_competitors_returned(self, rich_client: FlaskClient) -> None:
         data = rich_client.get("/api/products").get_json()

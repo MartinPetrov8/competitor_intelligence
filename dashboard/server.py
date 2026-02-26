@@ -197,6 +197,62 @@ class DashboardStore:
         with self._connect() as conn:
             return [dict(row) for row in conn.execute(query).fetchall()]
 
+    def get_scraper_count(self) -> int:
+        """Return the count of scrapers from the competitors table.
+        
+        Returns:
+            Integer count of competitors/scrapers in the database.
+            
+        Raises:
+            sqlite3.Error: If database query fails.
+        """
+        query = "SELECT COUNT(*) as count FROM competitors"
+        try:
+            with self._connect() as conn:
+                row = conn.execute(query).fetchone()
+                return int(row["count"])
+        except sqlite3.Error:
+            logging.exception("Failed to get scraper count")
+            raise
+
+    def get_last_run_timestamp(self) -> str | None:
+        """Return the maximum scraped_at timestamp across all scraping tables.
+        
+        Queries scraped_at columns from prices_v2, products_v2, reviews_trustpilot,
+        reviews_google, ab_tests, and snapshots tables and returns the most recent
+        timestamp.
+        
+        Returns:
+            ISO 8601 timestamp string of the most recent scrape, or None if no
+            timestamps exist in any table.
+            
+        Raises:
+            sqlite3.Error: If database query fails.
+        """
+        query = """
+            SELECT MAX(scraped_at) as last_run FROM (
+                SELECT MAX(scraped_at) as scraped_at FROM prices_v2
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM products_v2
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM reviews_trustpilot
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM reviews_google
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM ab_tests
+                UNION ALL
+                SELECT MAX(scraped_at) as scraped_at FROM snapshots
+            )
+        """
+        try:
+            with self._connect() as conn:
+                row = conn.execute(query).fetchone()
+                result = row["last_run"]
+                return str(result) if result is not None else None
+        except sqlite3.Error:
+            logging.exception("Failed to get last run timestamp")
+            raise
+
     def fetch_reviews(
         self, competitor: str | None, date_value: str | None, start_date: str | None, end_date: str | None
     ) -> dict[str, list[dict[str, Any]]]:
@@ -305,10 +361,18 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
 
     @app.get("/health")
     def health() -> Any:
+        try:
+            scrapers = store.get_scraper_count()
+            last_run = store.get_last_run_timestamp()
+        except sqlite3.Error:
+            logging.exception("Health check database query failed")
+            scrapers = None
+            last_run = None
         return jsonify(
             {
                 "status": "ok",
-                "timestamp": datetime.now(UTC).isoformat(),
+                "scrapers": scrapers,
+                "last_run": last_run,
             }
         )
 
