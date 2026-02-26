@@ -35,21 +35,25 @@ def _insert_sample_rows(db_path: Path) -> None:
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
-            INSERT INTO prices (
-                competitor_id, scrape_date, product_name, tier_name, currency,
-                price_amount, bundle_info, source_url, raw_text
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO prices_v2 (
+                competitor_id, scrape_date, scraped_at, main_price, currency,
+                addons, source_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (cid, "2026-02-22", "Onward Ticket", "Basic", "USD", 12.5, "None", "https://onwardticket.com", "$12.5"),
+            (cid, "2026-02-22", "2026-02-22T12:00:00Z", 12.5, "USD", "[]", "https://onwardticket.com"),
         )
         conn.execute(
             """
-            INSERT INTO products (
-                competitor_id, scrape_date, product_name, product_type, description,
-                is_bundle, source_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO products_v2 (
+                competitor_id, scrape_date, scraped_at,
+                one_way_offered, one_way_price,
+                round_trip_offered, round_trip_price,
+                hotel_offered, hotel_price,
+                visa_letter_offered, visa_letter_price,
+                source_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (cid, "2026-02-22", "Onward Ticket", "single", "Valid onward ticket", 0, "https://onwardticket.com"),
+            (cid, "2026-02-22", "2026-02-22T12:00:00Z", 1, 12.5, 0, None, 0, None, 0, None, "https://onwardticket.com"),
         )
         conn.execute(
             """
@@ -118,7 +122,10 @@ def test_api_endpoints_return_json_with_data(client: FlaskClient, tmp_path: Path
 
     products = client.get("/api/products")
     assert products.status_code == 200
-    assert products.get_json()[0]["product_name"] == "Onward Ticket"
+    products_data = products.get_json()
+    assert len(products_data) > 0
+    assert products_data[0]["one_way_offered"] == 1
+    assert products_data[0]["one_way_price"] == 12.5
 
     reviews = client.get("/api/reviews")
     assert reviews.status_code == 200
@@ -143,11 +150,12 @@ def test_filtering_by_competitor_and_date(client: FlaskClient, tmp_path: Path) -
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """
-            INSERT INTO prices (
-                competitor_id, scrape_date, product_name, currency, price_amount
-            ) VALUES (?, ?, ?, ?, ?)
+            INSERT INTO prices_v2 (
+                competitor_id, scrape_date, scraped_at, main_price, currency,
+                addons, source_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (other_id, "2026-02-23", "VisaFly Ticket", "USD", 20.0),
+            (other_id, "2026-02-23", "2026-02-23T12:00:00Z", 20.0, "USD", "[]", "https://vizafly.com"),
         )
         conn.commit()
 
