@@ -361,10 +361,18 @@ def create_app(db_path: Path = DEFAULT_DB_PATH) -> Flask:
 
     @app.get("/health")
     def health() -> Any:
+        try:
+            scrapers = store.get_scraper_count()
+            last_run = store.get_last_run_timestamp()
+        except sqlite3.Error:
+            logging.exception("Health check database query failed")
+            scrapers = None
+            last_run = None
         return jsonify(
             {
                 "status": "ok",
-                "timestamp": datetime.now(UTC).isoformat(),
+                "scrapers": scrapers,
+                "last_run": last_run,
             }
         )
 
