@@ -14,6 +14,7 @@ from scrapers.pricing import scrape_pricing
 from scrapers.products import scrape_products
 from scrapers.reviews_google import scrape_reviews_google
 from scrapers.reviews_trustpilot import scrape_reviews_trustpilot
+from scrapers.reviews_sentiment import scrape_reviews_sentiment
 from scrapers.snapshots import scrape_snapshots
 
 DEFAULT_DB_PATH = Path("competitor_data.db")
@@ -41,6 +42,7 @@ SCRAPER_TASKS: tuple[ScraperTask, ...] = (
     ScraperTask("snapshots", scrape_snapshots, ("snapshots", "diffs")),
     ScraperTask("reviews_trustpilot", scrape_reviews_trustpilot, ("reviews_trustpilot",)),
     ScraperTask("reviews_google", scrape_reviews_google, ("reviews_google",)),
+    ScraperTask("reviews_sentiment", scrape_reviews_sentiment, ("reviews_sentiment",)),
     ScraperTask("ab_tests", scrape_ab_tests, ("ab_tests",)),
 )
 

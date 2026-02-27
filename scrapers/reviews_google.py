@@ -16,6 +16,14 @@ from bs4 import BeautifulSoup
 
 from init_db import init_database
 
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(__file__), '..', '..', '..'))
+try:
+    from security.scraper_sanitize import sanitize_text
+except ImportError:
+    def sanitize_text(text, field_name="field"):
+        return str(text) if text is not None else ""
+
 DEFAULT_DB_PATH = Path("competitor_data.db")
 REQUEST_TIMEOUT_SECONDS = 30
 GOOGLE_SEARCH_TEMPLATE = "https://www.google.com/search?q={query}"

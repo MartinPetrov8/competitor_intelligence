@@ -155,6 +155,20 @@ TABLES_SQL: Final[list[str]] = [
         FOREIGN KEY (competitor_id) REFERENCES competitors(id)
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS reviews_sentiment (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        competitor_id INTEGER NOT NULL,
+        scrape_date TEXT NOT NULL,
+        scraped_at TEXT NOT NULL,
+        stars_filter INTEGER NOT NULL,
+        theme TEXT NOT NULL,
+        mention_count INTEGER NOT NULL DEFAULT 1,
+        sample_quotes TEXT,
+        UNIQUE(competitor_id, scrape_date, stars_filter, theme),
+        FOREIGN KEY (competitor_id) REFERENCES competitors(id)
+    );
+    """,
 ]
 
 INDEXES_SQL: Final[list[str]] = [
@@ -167,4 +181,5 @@ INDEXES_SQL: Final[list[str]] = [
     "CREATE INDEX IF NOT EXISTS idx_ab_tests_competitor_date ON ab_tests (competitor_id, scrape_date);",
     "CREATE INDEX IF NOT EXISTS idx_prices_v2_competitor_date ON prices_v2 (competitor_id, scrape_date);",
     "CREATE INDEX IF NOT EXISTS idx_products_v2_competitor_date ON products_v2 (competitor_id, scrape_date);",
+    "CREATE INDEX IF NOT EXISTS idx_reviews_sentiment_competitor_date ON reviews_sentiment (competitor_id, scrape_date);",
 ]

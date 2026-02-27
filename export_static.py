@@ -82,12 +82,26 @@ def load_data(db_path: Path) -> dict:
         ORDER BY a.scrape_date DESC, c.domain
     """)
 
+    sentiment = q("""
+        SELECT c.domain AS competitor, s.scrape_date, s.stars_filter,
+               s.theme, s.mention_count, s.sample_quotes
+        FROM reviews_sentiment s
+        JOIN competitors c ON c.id = s.competitor_id
+        ORDER BY s.scrape_date DESC, c.domain, s.mention_count DESC
+    """)
+    for row in sentiment:
+        try:
+            row["sample_quotes"] = json.loads(row["sample_quotes"]) if row["sample_quotes"] else []
+        except Exception:
+            row["sample_quotes"] = []
+
     conn.close()
     return {
         "competitors": competitors,
         "prices_v2": prices_v2,
         "reviews_trustpilot": reviews_tp,
         "reviews_google": reviews_g,
+        "reviews_sentiment": sentiment,
         "diffs": diffs,
         "ab_tests": ab_tests,
     }
@@ -545,26 +559,52 @@ function renderPricing() {{
 // ══════════════════════════════════════════════════════════════════════════
 // REVIEWS TAB
 // ══════════════════════════════════════════════════════════════════════════
-let activeReviewSource = 'trustpilot';
 
-function renderReviewsContent(source) {{
-  const rows = source === 'trustpilot' ? DATA.reviews_trustpilot : DATA.reviews_google;
-  const container = document.getElementById('reviewsContent');
+function renderReviews() {{
+  const el = document.getElementById('tab-reviews');
+  const rows = DATA.reviews_trustpilot;
 
   if (!rows.length) {{
-    container.innerHTML = `<div class="empty-state"><div class="icon">🔍</div><div class="label">No ${{source}} data available</div></div>`;
+    el.innerHTML = `<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">🔍</div><div class="label">No review data yet</div></div></div></div>`;
     return;
   }}
 
-  // Latest ratings chips
-  const latestDate = rows[0]?.scrape_date;
-  const latest = rows.filter(r => r.scrape_date === latestDate);
-  const chips = latest.map(r => `
-    <div class="chip">
-      <div class="chip-label">${{dot(r.competitor)}}${{esc(r.competitor)}}</div>
-      <div class="chip-value"><span class="rating-stars">${{stars(r.overall_rating)}}</span> ${{r.overall_rating?.toFixed(1) ?? '—'}}</div>
-      <div class="chip-sub">${{r.total_reviews != null ? r.total_reviews.toLocaleString() + ' reviews' : '—'}}</div>
-    </div>`).join('');
+  // Group by competitor, sorted by date desc
+  const byComp = {{}};
+  for (const r of rows) {{
+    if (!byComp[r.competitor]) byComp[r.competitor] = [];
+    byComp[r.competitor].push(r);
+  }}
+
+  // Day-over-day delta table: latest vs previous for each competitor
+  const deltaRows = Object.keys(byComp).sort().map(comp => {{
+    const sorted = byComp[comp].sort((a,b) => b.scrape_date.localeCompare(a.scrape_date));
+    const latest = sorted[0];
+    const prev = sorted.length > 1 ? sorted[1] : null;
+
+    const ratingDelta = prev && latest.overall_rating != null && prev.overall_rating != null
+      ? (latest.overall_rating - prev.overall_rating).toFixed(2)
+      : null;
+    const countDelta = prev && latest.total_reviews != null && prev.total_reviews != null
+      ? latest.total_reviews - prev.total_reviews
+      : null;
+
+    const ratingBadge = ratingDelta !== null
+      ? `<span style="color:${{parseFloat(ratingDelta) >= 0 ? '#15803d' : '#dc2626'}};font-weight:600;">${{parseFloat(ratingDelta) >= 0 ? '+' : ''}}${{ratingDelta}}</span>`
+      : '<span style="color:#94a3b8">—</span>';
+    const countBadge = countDelta !== null
+      ? `<span style="color:${{countDelta >= 0 ? '#15803d' : '#dc2626'}};font-weight:600;">${{countDelta >= 0 ? '+' : ''}}${{countDelta}}</span>`
+      : '<span style="color:#94a3b8">—</span>';
+
+    return `<tr>
+      <td>${{dot(comp)}}${{esc(comp)}}</td>
+      <td><span class="rating-stars">${{stars(latest.overall_rating)}}</span> ${{latest.overall_rating?.toFixed(1) ?? '—'}}</td>
+      <td>${{ratingBadge}}</td>
+      <td>${{latest.total_reviews != null ? latest.total_reviews.toLocaleString() : '—'}}</td>
+      <td>${{countBadge}}</td>
+      <td style="color:#64748b;font-size:.8rem;">${{esc(latest.scrape_date)}}</td>
+    </tr>`;
+  }}).join('');
 
   // Trend charts
   const {{ dates: ratingDates, datasets: ratingDS }} = buildLineDatasets(
@@ -574,17 +614,57 @@ function renderReviewsContent(source) {{
     rows, 'scrape_date', 'total_reviews', r => r.total_reviews != null
   );
 
-  // Table
-  const tableRows = rows.map(r => `<tr>
-    <td>${{dot(r.competitor)}}${{esc(r.competitor)}}</td>
-    <td>${{esc(r.scrape_date)}}</td>
-    <td><span class="rating-num">${{r.overall_rating?.toFixed(1) ?? '—'}}</span> <span class="rating-stars">${{stars(r.overall_rating)}}</span></td>
-    <td>${{r.total_reviews != null ? Number(r.total_reviews).toLocaleString() : '—'}}</td>
-    <td><a href="${{esc(r.source_url || '#')}}" target="_blank" style="color:#2563eb;font-size:.8rem;">link ↗</a></td>
-  </tr>`).join('');
+  // Pain Points from sentiment data
+  const sentiment = DATA.reviews_sentiment || [];
+  const latestSentDate = sentiment.length ? sentiment[0].scrape_date : null;
+  const latestSent = sentiment.filter(r => r.scrape_date === latestSentDate);
 
-  container.innerHTML = `
-    <div class="summary-bar">${{chips}}</div>
+  // Group by competitor
+  const sentByComp = {{}};
+  for (const s of latestSent) {{
+    if (!sentByComp[s.competitor]) sentByComp[s.competitor] = [];
+    sentByComp[s.competitor].push(s);
+  }}
+
+  const painCards = Object.keys(sentByComp).sort().map(comp => {{
+    const themes = sentByComp[comp];
+    const themeRows = themes.map(t => {{
+      const starLabel = t.stars_filter === 1 ? '⭐' : t.stars_filter === 2 ? '⭐⭐' : '⭐⭐⭐';
+      const quotes = (t.sample_quotes || []).map(q => `<em style="color:#94a3b8;font-size:.78rem;">"${{esc(q.substring(0,120))}}"</em>`).join(', ');
+      return `<tr>
+        <td style="font-weight:600;">${{esc(t.theme)}}</td>
+        <td style="text-align:center;">${{starLabel}}</td>
+        <td style="text-align:center;font-weight:700;">${{t.mention_count}}</td>
+        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">${{quotes || '—'}}</td>
+      </tr>`;
+    }}).join('');
+
+    return `
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-header">${{dot(comp)}} ${{esc(comp)}} — Pain Points</div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Theme</th><th>Stars</th><th>Mentions</th><th>Sample Quotes</th></tr></thead>
+              <tbody>${{themeRows}}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }}).join('');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-header">⭐ Review Snapshot (vs previous day)</div>
+      <div class="card-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Competitor</th><th>Rating</th><th>Δ Rating</th><th>Reviews</th><th>Δ Reviews</th><th>Date</th></tr></thead>
+            <tbody>${{deltaRows}}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     ${{ratingDates.length ? `
     <div class="charts-row">
       <div class="card" style="margin-bottom:0;">
@@ -596,42 +676,12 @@ function renderReviewsContent(source) {{
         <div class="card-body"><div class="chart-container"><canvas id="chartReviewCount"></canvas></div></div>
       </div>
     </div><div style="margin-bottom:1.25rem;"></div>` : ''}}
-    <div class="card">
-      <div class="card-header">📋 All Ratings <span class="badge badge-gray" style="margin-left:auto;">${{rows.length}} rows</span></div>
-      <div class="card-body">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Competitor</th><th>Date</th><th>Rating</th><th>Reviews</th><th>Source</th></tr></thead>
-            <tbody>${{tableRows}}</tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+    ${{painCards ? `<div class="card"><div class="card-header">🔴 Customer Pain Points <span class="badge badge-gray" style="margin-left:auto;">${{latestSentDate || '—'}}</span></div></div>${{painCards}}` : ''}}`;
 
   if (ratingDates.length) {{
     mkChart('chartReviewRating', ratingDates, ratingDS, v => v.toFixed(1) + '★');
     mkChart('chartReviewCount',  countDates,  countDS,  v => v.toLocaleString());
   }}
-}}
-
-function renderReviews() {{
-  const el = document.getElementById('tab-reviews');
-  el.innerHTML = `
-    <div class="source-tabs" id="reviewsSourceTabs">
-      <button class="source-tab-btn active" data-source="trustpilot">Trustpilot</button>
-      <button class="source-tab-btn" data-source="google">Google</button>
-    </div>
-    <div id="reviewsContent"></div>`;
-
-  document.querySelectorAll('.source-tab-btn').forEach(btn => {{
-    btn.addEventListener('click', () => {{
-      activeReviewSource = btn.dataset.source;
-      document.querySelectorAll('.source-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.source === activeReviewSource));
-      renderReviewsContent(activeReviewSource);
-    }});
-  }});
-
-  renderReviewsContent(activeReviewSource);
 }}
 
 // ══════════════════════════════════════════════════════════════════════════
