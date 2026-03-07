@@ -417,12 +417,15 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp_dir.cleanup()
 
+    def _patch_sleep(self) -> "patch[None]":  # type: ignore[type-arg]
+        return patch("scrapers.products.time.sleep")
+
     def test_scrape_inserts_one_row_per_competitor(self) -> None:
         """With 5 competitors each returning HTML, products_v2 should have 5 rows."""
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             return MockResponse(_HOMEPAGE_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             result = scrape_products(self.db_path)
 
         self.assertTrue(result)
@@ -435,7 +438,7 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             return MockResponse(_HOMEPAGE_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             scrape_products(self.db_path)
 
         with sqlite3.connect(self.db_path) as conn:
@@ -449,7 +452,7 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             return MockResponse(_HOMEPAGE_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             scrape_products(self.db_path)
             scrape_products(self.db_path)
 
@@ -463,18 +466,18 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
 
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             call_count["n"] += 1
-            # First competitor (id=1) always times out
-            if "onwardticket.com" in url:
+            # dummyticket.com always times out (exact match, no substring overlap)
+            if "dummyticket.com" in url and "dummy-tickets.com" not in url:
                 raise requests.Timeout("timed out")
             return MockResponse(_HOMEPAGE_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             result = scrape_products(self.db_path)
 
         self.assertTrue(result)
         with sqlite3.connect(self.db_path) as conn:
             count = conn.execute("SELECT COUNT(*) FROM products_v2").fetchone()[0]
-        # 4 successful competitors
+        # 4 successful competitors (one timed out)
         self.assertGreaterEqual(count, 4)
 
     def test_http_error_competitor_skipped_gracefully(self) -> None:
@@ -484,7 +487,7 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
                 return MockResponse("", status_code=404)
             return MockResponse(_HOMEPAGE_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             result = scrape_products(self.db_path)
 
         self.assertTrue(result)
@@ -494,7 +497,7 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             return MockResponse(_NO_PRODUCTS_HTML)
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             scrape_products(self.db_path)
 
         with sqlite3.connect(self.db_path) as conn:
@@ -513,33 +516,24 @@ class ScrapeProductsIntegrationTests(unittest.TestCase):
         def fake_get(url: str, **kwargs: object) -> MockResponse:
             raise requests.Timeout("timed out")
 
-        with patch("requests.Session.get", side_effect=fake_get):
+        with patch("requests.Session.get", side_effect=fake_get), self._patch_sleep():
             result = scrape_products(self.db_path)
 
         self.assertFalse(result)
 
-    def test_no_time_sleep_called_with_first_path_only(self) -> None:
-        """Ensure time.sleep is called between pages (not on first page)."""
+    def test_time_sleep_called_between_paths(self) -> None:
+        """Ensure time.sleep is called between paths (delay between requests)."""
         sleep_calls: list[float] = []
 
         def fake_get(url: str, **kwargs: object) -> MockResponse:
-            # Only return HTML for the homepage (path=""), 404 for all others
-            if url.endswith("/") or url.count("/") == 2:
-                return MockResponse(_HOMEPAGE_HTML)
-            return MockResponse("", status_code=404)
-
-        import scrapers.products as prod_module
-        original_sleep = prod_module.time.sleep
+            return MockResponse(_HOMEPAGE_HTML)
 
         def fake_sleep(secs: float) -> None:
             sleep_calls.append(secs)
 
-        prod_module.time.sleep = fake_sleep
-        try:
-            with patch("requests.Session.get", side_effect=fake_get):
-                scrape_products(self.db_path)
-        finally:
-            prod_module.time.sleep = original_sleep
+        with patch("requests.Session.get", side_effect=fake_get), \
+             patch("scrapers.products.time.sleep", side_effect=fake_sleep):
+            scrape_products(self.db_path)
 
         # sleep should have been called (between paths for each competitor)
         self.assertGreater(len(sleep_calls), 0)

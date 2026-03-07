@@ -1,9 +1,9 @@
 """
-Scrape 1-3 star Trustpilot reviews and extract pain point themes via Ollama.
+Scrape 1-3 star Trustpilot reviews and extract specific pain point themes via Claude Haiku 4.5.
 
 Strategy: Trustpilot embeds review data in __NEXT_DATA__ JSON — no JS rendering needed.
 Fetch each star-filtered page (?stars=1/2/3), parse reviews from __NEXT_DATA__, then
-run Ollama (qwen3:8b) to cluster themes.
+call Claude Haiku 4.5 to extract concrete, actionable complaint themes.
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import argparse
 import itertools
 import json
 import logging
+import os
 import re
 import sqlite3
 import time
@@ -26,8 +27,8 @@ from init_db import init_database
 DEFAULT_DB_PATH = Path("competitor_data.db")
 REQUEST_TIMEOUT_SECONDS = 30
 TRUSTPILOT_BASE = "https://www.trustpilot.com/review/{domain}"
-OLLAMA_ENDPOINT = "http://172.17.0.1:11434/api/generate"
-OLLAMA_MODEL = "qwen3:0.6b"
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 STAR_LEVELS = (1, 2, 3)
 
 _USER_AGENTS = [
@@ -69,7 +70,6 @@ def _fetch(session: requests.Session, url: str) -> str | None:
 
 def _extract_reviews_from_next_data(html: str) -> list[str]:
     """Parse review texts from Trustpilot's __NEXT_DATA__ JSON blob."""
-    import re as _re
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "html.parser")
     script = soup.find("script", id="__NEXT_DATA__")
@@ -86,7 +86,6 @@ def _extract_reviews_from_next_data(html: str) -> list[str]:
         if depth > 15:
             return
         if isinstance(obj, dict):
-            # reviews key contains a list of review dicts
             if "reviews" in obj and isinstance(obj["reviews"], list):
                 for rev in obj["reviews"]:
                     if isinstance(rev, dict):
@@ -103,33 +102,62 @@ def _extract_reviews_from_next_data(html: str) -> list[str]:
     return texts
 
 
-def _extract_themes_ollama(reviews: list[str], stars: int, domain: str) -> list[SentimentTheme]:
-    """Send review texts to Ollama and extract complaint themes."""
+def _extract_themes_haiku(reviews: list[str], stars: int, domain: str) -> list[SentimentTheme]:
+    """Use Claude Haiku 4.5 to extract specific, actionable complaint themes."""
     if not reviews:
         return []
 
-    combined = "\n\n".join(f"[{i+1}] {t}" for i, t in enumerate(reviews))
-    prompt = (
-        f"Analyze these {stars}-star customer reviews for {domain} and identify the top recurring complaint themes.\n\n"
-        "For each theme: short name (2-5 words), count of reviews mentioning it, and 1-2 direct short quotes.\n"
-        "Return ONLY a JSON array, no other text:\n"
-        '[{"theme": "Slow Delivery", "count": 4, "quotes": ["took 3 weeks", "never arrived"]}, ...]\n\n'
-        f"Reviews:\n{combined[:6000]}\n\nJSON:"
-    )
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        logging.error("ANTHROPIC_API_KEY not set — cannot call Haiku")
+        return []
+
+    combined = "\n\n".join(f"[Review {i+1}] {t}" for i, t in enumerate(reviews[:30]))
+
+    prompt = f"""Analyze these {stars}-star customer reviews for {domain}. 
+Identify the top 3-5 SPECIFIC, ACTIONABLE complaint themes.
+
+Rules:
+- Be CONCRETE. Not "bad service" but "no response to refund emails for 7+ days"
+- Not "ticket issues" but "ticket PNR code cannot be verified on airline website"  
+- Each theme should tell us exactly what went wrong so a competitor could fix it
+- Count how many reviews mention each theme
+- Include 1-2 SHORT direct quotes (max 80 chars each)
+
+Reviews:
+{combined}
+
+Return ONLY a JSON array, no other text:
+[{{"theme": "Specific problem description", "count": 3, "quotes": ["short quote 1", "short quote 2"]}}]"""
 
     try:
         resp = requests.post(
-            OLLAMA_ENDPOINT,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.2}},
-            timeout=180,
+            ANTHROPIC_API_URL,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": ANTHROPIC_MODEL,
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
         )
         resp.raise_for_status()
-        raw = resp.json().get("response", "").strip()
+        result = resp.json()
 
-        # Extract JSON array from response
+        # Extract text from response
+        raw = ""
+        for block in result.get("content", []):
+            if block.get("type") == "text":
+                raw += block["text"]
+
+        # Parse JSON array
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if not m:
-            logging.warning("No JSON array in Ollama response for %s stars=%d", domain, stars)
+            logging.warning("No JSON array in Haiku response for %s stars=%d", domain, stars)
             return []
 
         items = json.loads(m.group(0))
@@ -149,14 +177,14 @@ def _extract_themes_ollama(reviews: list[str], stars: int, domain: str) -> list[
         return themes
 
     except requests.RequestException as exc:
-        logging.error("Ollama request failed: %s", exc)
+        logging.error("Haiku API request failed: %s", exc)
     except (json.JSONDecodeError, ValueError) as exc:
-        logging.error("Ollama response parse error: %s", exc)
+        logging.error("Haiku response parse error: %s", exc)
     return []
 
 
 def _fallback_themes(reviews: list[str], stars: int) -> list[SentimentTheme]:
-    """Simple bigram frequency fallback when Ollama is unavailable."""
+    """Simple bigram frequency fallback — last resort only."""
     from collections import Counter
     words = []
     for text in reviews:
@@ -215,13 +243,10 @@ def scrape_reviews_sentiment(db_path: Path = DEFAULT_DB_PATH) -> bool:
     scraped_at = datetime.now(UTC).isoformat()
     any_success = False
 
-    # Check Ollama availability
-    ollama_ok = False
-    try:
-        r = requests.get("http://172.17.0.1:11434/api/tags", timeout=5)
-        ollama_ok = r.status_code == 200
-    except Exception:
-        logging.warning("Ollama unavailable — will use bigram fallback")
+    # Check if Anthropic API key is available
+    has_api_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    if not has_api_key:
+        logging.warning("ANTHROPIC_API_KEY not set — will use bigram fallback only")
 
     with sqlite3.connect(db_path) as conn:
         _ensure_sentiment_table(conn)
@@ -248,9 +273,10 @@ def scrape_reviews_sentiment(db_path: Path = DEFAULT_DB_PATH) -> bool:
                         time.sleep(2)
                         continue
 
-                    if ollama_ok:
-                        themes = _extract_themes_ollama(reviews, stars, domain)
-                    else:
+                    themes: list[SentimentTheme] = []
+                    if has_api_key:
+                        themes = _extract_themes_haiku(reviews, stars, domain)
+                    if not themes:
                         themes = _fallback_themes(reviews, stars)
 
                     if themes:
@@ -259,9 +285,9 @@ def scrape_reviews_sentiment(db_path: Path = DEFAULT_DB_PATH) -> bool:
                         any_success = True
                         logging.info("%s stars=%d: stored %d themes", domain, stars, len(themes))
 
-                    time.sleep(3)
+                    time.sleep(1)  # Light rate limiting between API calls
 
-                time.sleep(2)
+                time.sleep(1)
 
     return any_success
 
