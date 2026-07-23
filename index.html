@@ -276,7 +276,7 @@
     <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
   </div>
   <div class="last-updated">
-    <div>Generated 2026-07-23 20:39 UTC</div>
+    <div>Generated 2026-07-23 21:07 UTC</div>
     <div class="static-badge">STATIC SNAPSHOT</div>
   </div>
 </header>
@@ -472,6 +472,7 @@ function renderOnwardRadar() {
     }
   }
   const openEvents = events.filter(e => e.status === 'open');
+  const highValueMoves = openEvents.filter(e => ['critical','high'].includes(e.severity)).length;
   const activeHourly = scenarios.filter(s => s.active && s.cadence === 'hourly').length;
   const activeDaily = scenarios.filter(s => s.active && s.cadence === 'daily').length;
   const latestObservation = observations[0]?.scraped_at || '—';
@@ -479,8 +480,8 @@ function renderOnwardRadar() {
 
   const chips = `
     <div class="summary-bar">
-      <div class="chip"><div class="chip-label">Active scenarios</div><div class="chip-value">${scenarios.filter(s => s.active).length}</div><div class="chip-sub">${activeHourly} hourly / ${activeDaily} daily</div></div>
-      <div class="chip"><div class="chip-label">Open events</div><div class="chip-value">${openEvents.length}</div><div class="chip-sub">confirmed moves</div></div>
+      <div class="chip"><div class="chip-label">Competitor moves</div><div class="chip-value">${openEvents.length}</div><div class="chip-sub">${highValueMoves} high-value open</div></div>
+      <div class="chip"><div class="chip-label">Monitoring coverage</div><div class="chip-value">${scenarios.filter(s => s.active).length}</div><div class="chip-sub">${activeHourly} hourly / ${activeDaily} daily</div></div>
       <div class="chip"><div class="chip-label">Latest price</div><div class="chip-value">${latestPrice ? priceBadge(latestPrice.checkout_price, latestPrice.currency) : '—'}</div><div class="chip-sub">checkout total</div></div>
       <div class="chip"><div class="chip-label">Last scrape</div><div class="chip-value" style="font-size:.9rem;">${esc(latestObservation)}</div><div class="chip-sub">UTC</div></div>
     </div>`;
@@ -511,11 +512,32 @@ function renderOnwardRadar() {
     </tr>`;
   }).join('');
 
+  const diffEvidence = e => {
+    const diff = e.raw_diff || {};
+    const pair = field => diff[field] || null;
+    const fmt = v => Array.isArray(v) ? v.join(', ') : (v ?? '—');
+    if (pair('checkout_price') || pair('base_price')) {
+      const field = pair('checkout_price') ? 'checkout_price' : 'base_price';
+      const change = pair(field);
+      const currency = pair('currency')?.to || pair('currency')?.from || '';
+      return `${field.replace('_', ' ')}: ${fmt(change.from)} → ${fmt(change.to)} ${currency}`;
+    }
+    if (pair('payment_methods')) return `payment: ${fmt(pair('payment_methods').from)} → ${fmt(pair('payment_methods').to)}`;
+    if (pair('required_fields')) return `fields: ${(pair('required_fields').from || []).length} → ${(pair('required_fields').to || []).length}`;
+    if (pair('trust_claims')) return `trust claims: ${(pair('trust_claims').from || []).length} → ${(pair('trust_claims').to || []).length}`;
+    if (diff.signal_type) return `${diff.signal_type}: ${fmt(diff.previous_text || diff.previous_value)} → ${fmt(diff.metric_text || diff.metric_value)}`;
+    for (const [field, change] of Object.entries(diff)) {
+      if (change && typeof change === 'object' && ('from' in change || 'to' in change)) return `${field}: ${fmt(change.from)} → ${fmt(change.to)}`;
+    }
+    return 'confirmed change';
+  };
+
   const eventRows = events.map(e => `<tr data-severity="${esc(e.severity)}" data-type="${esc(e.event_type)}" data-scenario="${esc(e.scenario_id)}" data-status="${esc(e.status)}" data-seen="${esc(e.last_seen_at)}">
     <td>${severityBadge(e.severity)}</td>
     <td style="font-weight:700;">${esc(e.event_type)}</td>
     <td>${esc(e.scenario_name || e.scenario_id || '—')}</td>
     <td>${esc(e.summary)}</td>
+    <td style="max-width:300px;color:#475569;">${esc(diffEvidence(e))}</td>
     <td style="max-width:340px;">${esc(e.recommended_response || '—')}</td>
     <td>${Math.round((e.confidence || 0) * 100)}%</td>
     <td style="color:#64748b;font-size:.8rem;">${esc(e.last_seen_at)}</td>
@@ -558,9 +580,9 @@ function renderOnwardRadar() {
 
   el.innerHTML = chips + filterBar + `
     <div class="card">
-      <div class="card-header">🎯 Recommended Responses <span class="badge badge-gray" style="margin-left:auto;">${events.length} confirmed</span></div>
+      <div class="card-header">🎯 Competitor Moves <span class="badge badge-gray" style="margin-left:auto;">${events.length} confirmed</span></div>
       <div class="card-body">
-        ${events.length ? `<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Type</th><th>Scenario</th><th>Summary</th><th>DummyVisa Response</th><th>Confidence</th><th>Last Seen</th></tr></thead><tbody id="onwardEventRows">${eventRows}</tbody></table></div>` : `<div class="empty-state"><div class="icon">✅</div><div class="label">No confirmed Onward moves yet</div></div>`}
+        ${events.length ? `<div class="table-wrap"><table><thead><tr><th>Severity</th><th>Move</th><th>Scenario</th><th>What changed</th><th>Evidence</th><th>DummyVisa action</th><th>Confidence</th><th>Last Seen</th></tr></thead><tbody id="onwardEventRows">${eventRows}</tbody></table></div>` : `<div class="empty-state"><div class="icon">✅</div><div class="label">No meaningful Onward moves detected</div><div style="color:#64748b;margin-top:.35rem;">Collectors are only useful when they produce confirmed changes. Raw scenario health is below.</div></div>`}
       </div>
     </div>
     <div class="card">
