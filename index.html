@@ -276,7 +276,7 @@
     <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
   </div>
   <div class="last-updated">
-    <div>Generated 2026-07-27 07:38 UTC</div>
+    <div>Generated 2026-07-27 08:08 UTC</div>
     <div class="static-badge">STATIC SNAPSHOT</div>
   </div>
 </header>
@@ -344,6 +344,12 @@ function severityBadge(severity) {
 function statusBadge(status) {
   const cls = status === 'valid' ? 'badge-green' : status === 'budget_skipped' ? 'badge-yellow' : status === 'invalid_geo' ? 'badge-red' : 'badge-gray';
   return `<span class="badge ${cls}">${esc(status || 'unknown')}</span>`;
+}
+function timestampMinute(value) {
+  const raw = String(value ?? '');
+  if (!raw) return '—';
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})/);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : raw;
 }
 function bytesHuman(value) {
   const bytes = Number(value || 0);
@@ -486,7 +492,7 @@ function renderOnwardRadar() {
   const highValueMoves = openEvents.filter(e => ['critical','high'].includes(e.severity)).length;
   const activeHourly = scenarios.filter(s => s.active && s.cadence === 'hourly').length;
   const activeDaily = scenarios.filter(s => s.active && s.cadence === 'daily').length;
-  const latestObservation = observations[0]?.scraped_at || '—';
+  const latestObservation = timestampMinute(observations[0]?.scraped_at);
   const latestPrice = observations.find(o => o.checkout_price != null);
   const validGeo = geo.filter(g => g.validity_status === 'valid');
   const realGeoMarkets = [...new Set(validGeo.map(g => g.market_code).filter(Boolean))].sort();
@@ -526,7 +532,7 @@ function renderOnwardRadar() {
       <td>${obs ? priceBadge(obs.checkout_price, obs.currency) : '—'}</td>
       <td>${obs ? esc(obs.page_type) : '—'}</td>
       <td>${health}</td>
-      <td style="color:#64748b;font-size:.8rem;">${obs ? esc(obs.scraped_at) : '—'}</td>
+      <td style="color:#64748b;font-size:.8rem;">${timestampMinute(obs?.scraped_at)}</td>
     </tr>`;
   }).join('');
 
@@ -558,7 +564,7 @@ function renderOnwardRadar() {
     <td style="max-width:300px;color:#475569;">${esc(diffEvidence(e))}</td>
     <td style="max-width:340px;">${esc(e.recommended_response || '—')}</td>
     <td>${Math.round((e.confidence || 0) * 100)}%</td>
-    <td style="color:#64748b;font-size:.8rem;">${esc(e.last_seen_at)}</td>
+    <td style="color:#64748b;font-size:.8rem;">${timestampMinute(e.last_seen_at)}</td>
   </tr>`).join('');
 
   const signalValue = a => {
@@ -578,7 +584,7 @@ function renderOnwardRadar() {
     <td>${esc(signalValue(a))}</td>
     <td style="font-weight:700;color:${a.metric_text || a.previous_text ? '#475569' : (a.delta || 0) >= 0 ? '#15803d' : '#dc2626'};">${esc(signalDelta(a))}</td>
     <td>${a.event_id ? '<span class="badge badge-green">event</span>' : '<span class="badge badge-gray">signal</span>'}</td>
-    <td style="color:#64748b;font-size:.8rem;">${esc(a.checked_at)}</td>
+    <td style="color:#64748b;font-size:.8rem;">${timestampMinute(a.checked_at)}</td>
   </tr>`).join('');
 
   const geoRows = geo.slice(0, 80).map(g => {
@@ -592,7 +598,7 @@ function renderOnwardRadar() {
     <td>${esc((g.payment_methods || []).join(', ') || '—')}</td>
     <td>${g.coupon_field_visible ? '<span class="badge badge-blue">yes</span>' : '<span class="badge badge-gray">no</span>'}</td>
     <td>${bytesHuman(g.bytes_total)}<div style="color:#94a3b8;font-size:.75rem;">blocked ${Number(g.blocked_resource_count || 0)}</div></td>
-    <td style="color:#64748b;font-size:.8rem;">${esc(g.started_at)}</td>
+    <td style="color:#64748b;font-size:.8rem;">${timestampMinute(g.started_at)}</td>
   </tr>`;
   }).join('');
 
