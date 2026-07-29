@@ -276,7 +276,7 @@
     <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
   </div>
   <div class="last-updated">
-    <div>Generated 2026-07-29 20:02 UTC</div>
+    <div>Generated 2026-07-29 20:15 UTC</div>
     <div class="static-badge">STATIC SNAPSHOT</div>
   </div>
 </header>
@@ -622,7 +622,6 @@ function renderOnwardRadar() {
   </tr>`;
   };
   const geoActionRows = geoActionable.slice(0, 80).map(g => renderGeoRow(g, true)).join('');
-  const geoLatestRows = geoLatest.slice(0, 80).map(g => renderGeoRow(g, false)).join('');
 
   const priceRows = observations.filter(o => o.checkout_price != null);
   const trendDates = [...new Set(priceRows.map(o => o.scraped_at))].sort();
@@ -653,8 +652,7 @@ function renderOnwardRadar() {
     <div class="card">
       <div class="card-header">🌍 Real Geo Landing & Campaign Watch <span class="badge badge-gray" style="margin-left:auto;">${geoActionable.length} differences / ${realGeoMarkets.length} markets</span></div>
       <div class="card-body">
-        ${geoActionRows ? `<div class="table-wrap"><table><thead><tr><th>Market</th><th>Status</th><th>Kind</th><th>URL / Scenario</th><th>Difference</th><th>DummyVisa action</th><th>Price</th><th>Payments</th><th>Coupon</th><th>Bytes</th><th>Checked</th></tr></thead><tbody>${geoActionRows}</tbody></table></div>` : `<div class="empty-state"><div class="icon">✅</div><div class="label">No geo or campaign differences detected</div><div style="color:#64748b;margin-top:.35rem;">${geoSuppressedCount} valid audit rows are hidden because they match the US baseline.</div></div>`}
-        ${geoLatestRows ? `<div style="margin-top:1rem;"><div style="font-weight:800;color:#334155;margin-bottom:.5rem;">Latest market matrix</div><div class="table-wrap"><table><thead><tr><th>Market</th><th>Status</th><th>Kind</th><th>URL / Scenario</th><th>Price</th><th>Payments</th><th>Coupon</th><th>Bytes</th><th>Checked</th></tr></thead><tbody>${geoLatestRows}</tbody></table></div></div>` : ''}
+        ${geoActionRows ? `<div class="table-wrap"><table><thead><tr><th>Market</th><th>Status</th><th>Kind</th><th>URL / Scenario</th><th>Difference</th><th>DummyVisa action</th><th>Price</th><th>Payments</th><th>Coupon</th><th>Bytes</th><th>Checked</th></tr></thead><tbody>${geoActionRows}</tbody></table></div>` : `<div class="empty-state"><div class="icon">✅</div><div class="label">No geo or campaign differences detected</div><div style="color:#64748b;margin-top:.35rem;">${geoLatest.length} latest market probes are hidden because they match the US baseline or are just healthy telemetry.</div></div>`}
       </div>
     </div>
     ${trendDates.length ? `<div class="card"><div class="card-header">📈 Onward Price Timeline</div><div class="card-body"><div class="chart-container"><canvas id="chartOnwardPrice"></canvas></div></div></div>` : ''}
