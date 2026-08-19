@@ -322,7 +322,7 @@
     <div class="subtitle">DummyVisaTicket — Daily monitoring dashboard</div>
   </div>
   <div class="last-updated">
-    <div>Generated 2026-08-19 14:39 UTC</div>
+    <div>Generated 2026-08-19 14:40 UTC</div>
     <div class="static-badge">STATIC SNAPSHOT</div>
   </div>
 </header>
@@ -405,6 +405,140 @@ function bytesHuman(value) {
   if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return bytes + ' B';
 }
+function latestRowsBy(rows, groupKey, dateKey) {
+  const out = {};
+  for (const row of rows || []) {
+    const key = row[groupKey];
+    const date = row[dateKey] || '';
+    if (!key) continue;
+    if (!out[key] || date > (out[key][dateKey] || '')) out[key] = row;
+  }
+  return out;
+}
+function numberDelta(before, after) {
+  if (before == null || after == null) return null;
+  const delta = Number(after) - Number(before);
+  return Number.isFinite(delta) ? delta : null;
+}
+function actionCard(item) {
+  const level = item.level || 'low';
+  return `<div class="action-item ${esc(level)}">
+    <div style="display:flex;gap:.5rem;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+      <div class="action-title">${esc(item.title)}</div>
+      ${severityBadge(level)}
+    </div>
+    <div class="action-meta">${esc(item.source || 'Dashboard signal')}</div>
+    <div class="action-copy">${esc(item.action || item.summary || 'Review before changing DummyVisa.')}</div>
+  </div>`;
+}
+function actionTableRow(item) {
+  return `<tr>
+    <td>${severityBadge(item.level)}</td>
+    <td style="font-weight:700;">${esc(item.title)}</td>
+    <td style="max-width:360px;color:#475569;">${esc(item.summary || '—')}</td>
+    <td style="max-width:380px;">${esc(item.action || '—')}</td>
+    <td style="color:#64748b;font-size:.8rem;">${esc(item.source || '—')}</td>
+  </tr>`;
+}
+function buildOperationalActions() {
+  const actions = [];
+  const strategy = DATA.strategy_brief || {};
+  const plannedBase = Number(strategy.dummyvisa_base_price || 12);
+  const latestPrices = latestRowsBy(DATA.prices_v2 || [], 'competitor', 'scrape_date');
+  const onwardPrice = latestPrices['onwardticket.com'];
+
+  if (onwardPrice?.main_price != null) {
+    const gap = Number(onwardPrice.main_price) - plannedBase;
+    actions.push({
+      level: gap >= 3 ? 'medium' : 'high',
+      title: `Keep DummyVisa at $${plannedBase} base`,
+      source: 'Pricing strategy',
+      summary: `Onward latest base is ${Number(onwardPrice.main_price).toFixed(2)}. DummyVisa keeps a ${gap.toFixed(2)} headline gap.`,
+      action: 'Launch with the cheaper base price, then monetize Activate Later, Flexible Reservation, round trip, and extra passengers as order add-ons.',
+    });
+  }
+
+  for (const event of (DATA.onward_events || []).filter(e => e.status === 'open')) {
+    actions.push({
+      level: event.severity || 'medium',
+      title: event.summary || event.event_type || 'Onward move detected',
+      source: `Onward Radar · ${timestampMinute(event.last_seen_at)}`,
+      summary: event.event_type || 'Confirmed competitor event',
+      action: event.recommended_response || 'Inspect the underlying event before changing DummyVisa.',
+    });
+  }
+
+  for (const change of DATA.onward_funnel_changes || []) {
+    actions.push({
+      level: change.severity || 'medium',
+      title: `Funnel changed: ${change.scenario_name || change.scenario_id}`,
+      source: `Funnel Watch · ${timestampMinute(change.detected_at)}`,
+      summary: change.summary,
+      action: change.recommended_response,
+    });
+  }
+
+  for (const geo of DATA.geo_actionable_observations || []) {
+    actions.push({
+      level: geo.validity_status === 'valid' ? 'high' : 'medium',
+      title: `Geo/campaign difference in ${geo.market_code || 'market'}`,
+      source: `Real Geo · ${timestampMinute(geo.started_at)}`,
+      summary: geo.geo_evidence || geo.error_message || 'Market probe differs from baseline.',
+      action: geo.recommended_response || 'Inspect the route and decide whether DummyVisa needs matching coverage.',
+    });
+  }
+
+  for (const signal of DATA.onward_acquisition_signals || []) {
+    const level = signal.signal_type === 'trustpilot_review_count' ? 'medium' : 'high';
+    actions.push({
+      level,
+      title: `Onward acquisition signal: ${signal.signal_type}`,
+      source: `${signal.source || 'acquisition'} · ${timestampMinute(signal.checked_at)}`,
+      summary: signal.evidence || signal.title || 'Acquisition signal changed.',
+      action: signal.recommended_response || 'Check whether DummyVisa needs copy, SEO, or trust-proof response.',
+    });
+  }
+
+  const recentDiffs = (DATA.diffs || [])
+    .filter(d => Number(d.additions_count || 0) + Number(d.removals_count || 0) > 0)
+    .slice(0, 5);
+  for (const diff of recentDiffs) {
+    const total = Number(diff.additions_count || 0) + Number(diff.removals_count || 0);
+    const noisyContactForm = String(diff.diff_text || '').includes('Your message') && String(diff.diff_text || '').includes('message Your');
+    if (noisyContactForm) continue;
+    actions.push({
+      level: total >= 10 ? 'medium' : 'low',
+      title: `${diff.competitor} changed ${diff.page_type || 'page'} copy`,
+      source: `Site Diffs · ${diff.diff_date}`,
+      summary: `+${diff.additions_count || 0} / -${diff.removals_count || 0} text lines.`,
+      action: 'Inspect the changed copy only if it touches price, trust, delivery, visa use, PNR, or refund claims.',
+    });
+  }
+
+  const detectedAb = (DATA.ab_tests || []).filter(row => row.detected);
+  for (const row of detectedAb.slice(0, 6)) {
+    actions.push({
+      level: 'medium',
+      title: `${row.competitor} has A/B tooling evidence`,
+      source: `A/B Tests · ${row.scrape_date}`,
+      summary: row.evidence || row.tool_name || row.page_url,
+      action: 'Watch this page for offer, CTA, proof, and checkout-friction changes before copying anything.',
+    });
+  }
+
+  if (!actions.some(a => ['critical', 'high'].includes(a.level))) {
+    actions.push({
+      level: 'medium',
+      title: 'No urgent competitor move today',
+      source: 'Daily synthesis',
+      summary: 'Current collectors are mostly stable: price, geo, campaign, and funnel signals do not force a tactical response.',
+      action: strategy.daily_recommendation || 'Use today to build commercial SEO, trust proof, affiliate outreach, and PNR confidence pages.',
+    });
+  }
+
+  const weight = {critical: 4, high: 3, medium: 2, low: 1};
+  return actions.sort((a, b) => (weight[b.level] || 0) - (weight[a.level] || 0)).slice(0, 12);
+}
 
 // ── Chart helpers ─────────────────────────────────────────────────────────
 const chartInstances = {};
@@ -444,6 +578,77 @@ function buildLineDatasets(rows, dateKey, valueKey, filterFn) {
     fill: false, tension: 0.35, pointRadius: 4, pointHoverRadius: 6, spanGaps: true,
   }));
   return { dates, datasets };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DAILY BRIEF TAB
+// ══════════════════════════════════════════════════════════════════════════
+function renderDailyBrief() {
+  const el = document.getElementById('tab-brief');
+  const strategy = DATA.strategy_brief || {};
+  const actions = buildOperationalActions();
+  const latestPrices = latestRowsBy(DATA.prices_v2 || [], 'competitor', 'scrape_date');
+  const onward = latestPrices['onwardticket.com'];
+  const plannedBase = Number(strategy.dummyvisa_base_price || 12);
+  const openEvents = (DATA.onward_events || []).filter(e => e.status === 'open');
+  const highActions = actions.filter(a => ['critical', 'high'].includes(a.level)).length;
+  const detectedAb = (DATA.ab_tests || []).filter(row => row.detected).length;
+  const latestReviews = latestRowsBy(DATA.reviews_trustpilot || [], 'competitor', 'scrape_date');
+  const onwardReviews = latestReviews['onwardticket.com'];
+  const priceGap = onward?.main_price != null ? Number(onward.main_price) - plannedBase : null;
+
+  const pages = (strategy.priority_pages || [])
+    .map(page => `<span class="page-pill">${esc(page)}</span>`)
+    .join('');
+  const marketText = (strategy.priority_markets || []).join(', ');
+  const actionRows = actions.map(actionTableRow).join('');
+  const topCards = actions.slice(0, 3).map(actionCard).join('');
+
+  el.innerHTML = `
+    <div class="summary-bar">
+      <div class="chip"><div class="chip-label">Today action load</div><div class="chip-value">${actions.length}</div><div class="chip-sub">${highActions} high-priority</div></div>
+      <div class="chip"><div class="chip-label">Onward price</div><div class="chip-value">${onward ? priceBadge(onward.main_price, onward.currency) : '—'}</div><div class="chip-sub">${priceGap == null ? 'gap unknown' : '$' + priceGap.toFixed(2) + ' above DummyVisa'}</div></div>
+      <div class="chip"><div class="chip-label">Open Onward events</div><div class="chip-value">${openEvents.length}</div><div class="chip-sub">confirmed changes</div></div>
+      <div class="chip"><div class="chip-label">A/B evidence</div><div class="chip-value">${detectedAb}</div><div class="chip-sub">detected rows</div></div>
+      <div class="chip"><div class="chip-label">Onward Trustpilot</div><div class="chip-value">${onwardReviews?.overall_rating != null ? Number(onwardReviews.overall_rating).toFixed(1) : '—'}</div><div class="chip-sub">${onwardReviews?.total_reviews != null ? Number(onwardReviews.total_reviews).toLocaleString() + ' reviews' : 'review count unknown'}</div></div>
+    </div>
+
+    <div class="brief-grid">
+      <div>
+        <div class="card">
+          <div class="card-header">⚡ What To Do Today <span class="badge badge-gray" style="margin-left:auto;">ranked</span></div>
+          <div class="card-body">
+            <div class="action-list">${topCards}</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">📋 Action Queue <span class="badge badge-gray" style="margin-left:auto;">all signals</span></div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Priority</th><th>Signal</th><th>Why it matters</th><th>DummyVisa action</th><th>Source</th></tr></thead>
+                <tbody>${actionRows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside>
+        <div class="card">
+          <div class="card-header">🎯 Strategic Lens</div>
+          <div class="card-body">
+            <div class="strategy-list">
+              <div class="strategy-row"><div class="strategy-label">Main rival</div><div class="strategy-value">${esc(strategy.primary_competitor || 'onwardticket.com')}</div></div>
+              <div class="strategy-row"><div class="strategy-label">Read</div><div class="strategy-value">${esc(strategy.verdict || 'Onward is the benchmark competitor.')}</div></div>
+              <div class="strategy-row"><div class="strategy-label">Rule</div><div class="strategy-value">${esc(strategy.monitoring_thesis || 'Act on material competitor movement only.')}</div></div>
+              <div class="strategy-row"><div class="strategy-label">Markets</div><div class="strategy-value">${esc(marketText || '—')}</div></div>
+              <div class="strategy-row"><div class="strategy-label">SEO pages</div><div class="strategy-value">${pages || '—'}</div></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1005,6 +1210,7 @@ function switchTab(name) {
 
   if (!rendered[name]) {
     rendered[name] = true;
+    if (name === 'brief')    renderDailyBrief();
     if (name === 'pricing')  renderPricing();
     if (name === 'onward')   renderOnwardRadar();
     if (name === 'reviews')  renderReviews();
@@ -1018,7 +1224,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
-switchTab('pricing');
+switchTab('brief');
 </script>
 </body>
 </html>
